@@ -37,13 +37,44 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   try {
     const decoded = await adminAuth().verifySessionCookie(sessionCookie, true);
     return await getUserById(decoded.uid);
-  } catch {
-    // Expired, revoked or tampered-with. All of these mean "signed out"; the
-    // stale cookie is cleared by the sign-out route or overwritten on the
-    // next successful sign-in.
-    return null;
+  } catch (error) {
+    if (isRejectedCookie(error)) {
+      // Expired, revoked or tampered-with. All of these mean "signed out";
+      // the stale cookie is cleared by the sign-out route or overwritten on
+      // the next successful sign-in.
+      return null;
+    }
+    // Anything else — missing service account credentials, an unreachable
+    // Firebase, a broken private key — is a server fault, not a signed-out
+    // user. Swallowing it here would bounce everyone to /login forever with
+    // no clue why, so let the error boundary say what actually broke.
+    throw error;
   }
 });
+
+/** Firebase's codes for "this cookie is no good", as opposed to a server fault. */
+const REJECTED_COOKIE_CODES = new Set([
+  "auth/session-cookie-expired",
+  "auth/session-cookie-revoked",
+  "auth/invalid-session-cookie",
+  "auth/argument-error",
+  "auth/user-disabled",
+  "auth/user-not-found",
+  "auth/id-token-expired",
+  "auth/id-token-revoked",
+]);
+
+function isRejectedCookie(error: unknown): boolean {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code: unknown }).code === "string"
+  ) {
+    return REJECTED_COOKIE_CODES.has((error as { code: string }).code);
+  }
+  return false;
+}
 
 /** Cookie options shared by the session and sign-out routes. */
 export function sessionCookieOptions(maxAgeSeconds: number) {
