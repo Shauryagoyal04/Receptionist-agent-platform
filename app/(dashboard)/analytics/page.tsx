@@ -1,97 +1,226 @@
 import type { Metadata } from "next";
+import { TriangleAlert } from "lucide-react";
+import { z } from "zod";
 
 import { PageHeader, PageShell } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { KpiCard } from "@/components/analytics/kpi-card";
+import { OutcomeBar } from "@/components/analytics/outcome-bar";
+import { ChartFrame } from "@/components/analytics/chart-frame";
+import {
+  ChannelSplit,
+  HoursChart,
+  IntentChart,
+  SentimentChart,
+  VolumeChart,
+} from "@/components/analytics/charts";
+import {
+  EscalationTable,
+  ToolReliabilityTable,
+  ViewAllLink,
+} from "@/components/analytics/tables";
+import { RangePicker } from "@/components/analytics/range-picker";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getServerEnv } from "@/lib/env";
 import { getConversationsInRange } from "@/lib/data/conversations";
-import { formatCount, formatDuration, formatPercent, median } from "@/lib/utils";
+import {
+  aggregate,
+  buildKpis,
+  precedingRange,
+} from "@/lib/analytics/aggregate";
+import {
+  addDaysToDateKey,
+  daysBetweenKeys,
+  isDateOnly,
+  zonedEndOfDay,
+  zonedStartOfDay,
+  zonedToday,
+} from "@/lib/time";
 
 export const metadata: Metadata = {
   title: "Analytics",
   description: "How the virtual receptionist performed over time.",
 };
 
-const RANGE_DAYS = 30;
+const DEFAULT_DAYS = 30;
+const dateKey = z.string().refine(isDateOnly);
 
-export default async function AnalyticsPage() {
+function first(value: string | string[] | undefined): string | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
+export default async function AnalyticsPage({
+  searchParams,
+}: PageProps<"/analytics">) {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const to = new Date();
-  const from = new Date(to.getTime() - RANGE_DAYS * 24 * 60 * 60 * 1000);
-  const { conversations } = await getConversationsInRange(
-    user.clinicId,
-    from.toISOString(),
-    to.toISOString(),
-  );
+  const { DEFAULT_CLINIC_TIMEZONE: timeZone } = getServerEnv();
+  const raw = await searchParams;
 
-  const total = conversations.length;
-  const escalated = conversations.filter((c) => c.escalated).length;
-  const booked = conversations.filter(
-    (c) => c.outcome === "appointment_booked",
-  ).length;
-  const resolvedWithoutHuman = total > 0 ? 1 - escalated / total : 0;
-  const medianDuration = median(conversations.map((c) => c.durationSec));
+  const today = zonedToday(timeZone);
+  const parsedFrom = dateKey.safeParse(first(raw.from));
+  const parsedTo = dateKey.safeParse(first(raw.to));
+
+  let from = parsedFrom.success ? parsedFrom.data : addDaysToDateKey(today, -(DEFAULT_DAYS - 1));
+  let to = parsedTo.success ? parsedTo.data : today;
+  // A reversed range is a typo, not an empty result set.
+  if (from > to) [from, to] = [to, from];
+
+  const previous = precedingRange(from, to);
+  const rangeDays = daysBetweenKeys(from, to);
+
+  // Both periods are fetched, then both go through the same pure aggregation.
+  // Keeping fetch and compute separate is what lets pre-aggregated rollups
+  // replace this fetcher later without touching a single chart.
+  const [currentRows, previousRows] = await Promise.all([
+    getConversationsInRange(
+      user.clinicId,
+      zonedStartOfDay(from, timeZone) ?? from,
+      zonedEndOfDay(to, timeZone) ?? to,
+    ),
+    getConversationsInRange(
+      user.clinicId,
+      zonedStartOfDay(previous.from, timeZone) ?? previous.from,
+      zonedEndOfDay(previous.to, timeZone) ?? previous.to,
+    ),
+  ]);
+
+  const summary = aggregate(currentRows.conversations, { from, to, timeZone });
+  const priorSummary = aggregate(previousRows.conversations, {
+    from: previous.from,
+    to: previous.to,
+    timeZone,
+  });
+
+  const kpis = buildKpis(summary, priorSummary);
+  const [headline, ...rest] = kpis;
+  const isEmpty = summary.total === 0;
+  const periodLabel = `previous ${rangeDays} days`;
 
   return (
     <PageShell>
       <PageHeader
         title="Analytics"
-        description={`How the agent performed over the last ${RANGE_DAYS} days.`}
-      />
+        description={`How the agent performed over ${rangeDays} days, in the clinic's local time.`}
+      >
+        <RangePicker from={from} to={to} timeZone={timeZone} />
+      </PageHeader>
 
-      {total === 0 ? (
+      {currentRows.truncated && (
+        <p
+          role="status"
+          className="text-status-abandoned bg-status-abandoned-tint mt-4 flex items-start gap-2 rounded-md px-3 py-2 text-sm"
+        >
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <span>
+            This range holds more conversations than the page reads at once, so
+            the figures below are based on the most recent slice. Narrow the
+            range for exact numbers.
+          </span>
+        </p>
+      )}
+
+      {isEmpty ? (
         <Card className="mt-6">
           <CardContent className="py-16 text-center">
             <p className="font-medium">No conversations in this range</p>
             <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-              Run <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">npm run seed</code>{" "}
-              to load demo data, or point the agent at the ingestion endpoint.
+              Try a wider date range, run{" "}
+              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
+                npm run seed
+              </code>{" "}
+              for demo data, or connect the agent to the ingestion endpoint.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Kpi
-            label="Resolved without a human"
-            value={formatPercent(resolvedWithoutHuman, 1)}
-            emphasis
-          />
-          <Kpi label="Conversations handled" value={formatCount(total)} />
-          <Kpi label="Appointments booked" value={formatCount(booked)} />
-          <Kpi
-            label="Median handling time"
-            value={formatDuration(medianDuration)}
-          />
-        </div>
+        <>
+          {/* The headline number gets its own column and visual weight; the
+              other five sit beside it. */}
+          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <KpiCard kpi={headline} emphasis periodLabel={periodLabel} />
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {rest.map((kpi) => (
+                <KpiCard key={kpi.id} kpi={kpi} periodLabel={periodLabel} />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <ChartFrame
+              title="Conversation volume"
+              description="Daily totals, with escalations overlaid"
+              isEmpty={false}
+              className="lg:col-span-2"
+            >
+              <VolumeChart days={summary.days} timeZone={timeZone} />
+            </ChartFrame>
+
+            <Card className="gap-0 py-0">
+              <CardHeader className="px-4 pt-4 pb-0">
+                <CardTitle className="text-sm font-medium">Outcomes</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pt-3 pb-4">
+                <OutcomeBar data={summary.byOutcome} />
+              </CardContent>
+            </Card>
+
+            <ChartFrame title="Intent distribution" isEmpty={false}>
+              <IntentChart data={summary.byIntent} />
+            </ChartFrame>
+
+            <ChartFrame
+              title="Busiest hours"
+              description="Clinic local time — what staffing follows"
+              isEmpty={false}
+            >
+              <HoursChart hours={summary.hours} />
+            </ChartFrame>
+
+            <ChartFrame
+              title="Negative sentiment"
+              description="Share of conversations per day"
+              isEmpty={false}
+            >
+              <SentimentChart days={summary.days} timeZone={timeZone} />
+            </ChartFrame>
+
+            <Card className="gap-0 py-0 lg:col-span-2">
+              <CardHeader className="px-4 pt-4 pb-0">
+                <CardTitle className="text-sm font-medium">Channels</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pt-3 pb-4">
+                <ChannelSplit data={summary.byChannel} />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <Card className="gap-0 overflow-hidden py-0">
+              <CardHeader className="px-4 py-3">
+                <CardTitle className="text-sm font-medium">
+                  Recent escalations
+                </CardTitle>
+                <ViewAllLink
+                  href="/conversations?outcome=escalated"
+                  label="All escalations"
+                />
+              </CardHeader>
+              <EscalationTable rows={summary.recentEscalations} />
+            </Card>
+
+            <Card className="gap-0 overflow-hidden py-0">
+              <CardHeader className="px-4 py-3">
+                <CardTitle className="text-sm font-medium">
+                  Tool reliability
+                </CardTitle>
+              </CardHeader>
+              <ToolReliabilityTable rows={summary.toolReliability} />
+            </Card>
+          </div>
+        </>
       )}
     </PageShell>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  emphasis = false,
-}: {
-  label: string;
-  value: string;
-  emphasis?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-muted-foreground text-sm">{label}</p>
-        <p
-          className={
-            emphasis
-              ? "tabular text-status-booked mt-1 text-3xl font-semibold"
-              : "tabular mt-1 text-2xl font-semibold"
-          }
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
   );
 }
