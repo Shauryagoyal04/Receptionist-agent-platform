@@ -278,12 +278,20 @@ export const isoDate = z
     return z.NEVER;
   });
 
-export const nullableIsoDate = z
-  .union([z.null(), z.undefined(), isoDate])
+/*
+ * Fields that may be absent, null, or present — all normalizing to null.
+ *
+ * `.nullish()` rather than a union including `z.undefined()`: once
+ * `.transform()` wraps a union, Zod still treats the key as required, so an
+ * omitted field would be rejected rather than defaulted.
+ */
+export const nullableIsoDate = isoDate
+  .nullish()
   .transform((value) => value ?? null);
 
 const nullableString = z
-  .union([z.null(), z.undefined(), z.string()])
+  .string()
+  .nullish()
   .transform((value) => value ?? null);
 
 /* ------------------------------------------------------------------ */
@@ -369,7 +377,8 @@ export const toolInvocationSchema = z.object({
   name: z.string(),
   args: z.record(z.string(), z.unknown()),
   result: z
-    .union([z.null(), z.undefined(), z.record(z.string(), z.unknown())])
+    .record(z.string(), z.unknown())
+    .nullish()
     .transform((value) => value ?? null),
   status: z.enum(["success", "error"]),
   error: nullableString,
@@ -384,15 +393,14 @@ export const messageSchema = z.object({
   content: z.string(),
   timestamp: isoDate,
   audioUrl: nullableString,
-  latencyMs: z
-    .union([z.null(), z.undefined(), z.number()])
-    .transform((value) => value ?? null),
+  latencyMs: z.number().nullish().transform((value) => value ?? null),
   confidence: z
-    .union([z.null(), z.undefined(), z.number().min(0).max(1)])
+    .number()
+    .min(0)
+    .max(1)
+    .nullish()
     .transform((value) => value ?? null),
-  tool: z
-    .union([z.null(), z.undefined(), toolInvocationSchema])
-    .transform((value) => value ?? null),
+  tool: toolInvocationSchema.nullish().transform((value) => value ?? null),
 });
 export type Message = z.infer<typeof messageSchema>;
 

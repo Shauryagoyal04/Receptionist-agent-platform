@@ -20,6 +20,7 @@ const PORT = 3123;
 const BASE = `http://127.0.0.1:${PORT}`;
 const EMAIL = "smoke@hospital.example";
 const PASSWORD = "smoke-password-123";
+const INGEST_KEY = "smoke-ingest-key-0123456789abcdef";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -39,6 +40,7 @@ const env = {
   DEFAULT_CLINIC_ID: "main-clinic",
   DEFAULT_CLINIC_TIMEZONE: "Asia/Kolkata",
   SIGNUP_ALLOWED_DOMAINS: "hospital.example",
+  INGEST_API_KEY: INGEST_KEY,
   NODE_ENV: "production" as const,
   PORT: String(PORT),
 };
@@ -160,6 +162,17 @@ try {
   // Recharts measures the DOM, so ResponsiveContainer renders nothing during
   // SSR by design. Assert the chart frames are server-rendered instead.
   check("chart frames rendered", analyticsHtml.includes("Busiest hours"));
+  check("skip link present", analyticsHtml.includes("Skip to content"));
+  check(
+    "charts carry a text-equivalent table",
+    analyticsHtml.includes("Conversations by hour of day"),
+  );
+  check(
+    "outcome bar has a text alternative",
+    /role="img"[^>]*aria-label="[^"]*percent/.test(analyticsHtml),
+  );
+  check("main landmark present", analyticsHtml.includes("<main"));
+  check("single h1", (analyticsHtml.match(/<h1/g) ?? []).length === 1);
   check("volume chart frame rendered", analyticsHtml.includes("Conversation volume"));
   check(
     "no empty-state on seeded data",
@@ -216,6 +229,137 @@ try {
   check(
     "malformed id shows the not-found page",
     malformedHtml.includes("couldn&#x27;t find that") || malformedHtml.includes("couldn't find that"),
+  );
+
+  // --- Ingestion ------------------------------------------------------
+  console.log("\n[smoke] ingestion");
+
+  const ingestUrl = `${BASE}/api/ingest/conversation`;
+  const ingestBody = {
+    externalId: "conv_smoke_0001",
+    phone: "+919876543210",
+    patientName: "Rahul Deshpande",
+    isReturning: true,
+    channel: "whatsapp",
+    status: "completed",
+    outcome: "appointment_booked",
+    primaryIntent: "book_appointment",
+    intents: ["book_appointment"],
+    doctorName: "Dr. Karan Grewal",
+    appointmentAt: "2026-10-14T06:00:00.000Z",
+    startedAt: new Date(Date.now() - 3600_000).toISOString(),
+    escalated: false,
+    sentiment: "positive",
+    language: "en",
+    summary: "Rahul booked an ENT slot with Dr. Karan Grewal.",
+    tags: ["new-patient"],
+    messages: [
+      {
+        role: "patient",
+        type: "text",
+        content: "Hi, I need to see an ENT doctor this week.",
+        timestamp: new Date(Date.now() - 3600_000).toISOString(),
+      },
+      {
+        role: "agent",
+        type: "tool_call",
+        content: "check_availability(doctor_name, date)",
+        timestamp: new Date(Date.now() - 3595_000).toISOString(),
+        tool: {
+          name: "check_availability",
+          args: { doctor_name: "Dr. Karan Grewal", date: "2026-10-14" },
+          result: { slots: ["11:30"] },
+          status: "success",
+          error: null,
+          durationMs: 684,
+        },
+      },
+      {
+        role: "agent",
+        type: "text",
+        content: "Dr. Karan Grewal has 11:30am free on 14 Oct. Shall I book it?",
+        timestamp: new Date(Date.now() - 3590_000).toISOString(),
+        latencyMs: 940,
+        confidence: 0.94,
+      },
+    ],
+  };
+
+  function ingest(body: unknown, token: string | null = INGEST_KEY) {
+    return fetch(ingestUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    });
+  }
+
+  const noAuth = await ingest(ingestBody, null);
+  check("ingest without a token is 401", noAuth.status === 401, `${noAuth.status}`);
+
+  const wrongAuth = await ingest(ingestBody, "wrong-key");
+  check("ingest with a wrong token is 401", wrongAuth.status === 401, `${wrongAuth.status}`);
+  check(
+    "401 leaks no detail",
+    (await wrongAuth.json()).error === "Unauthorized.",
+  );
+
+  const badJson = await ingest("{not json", INGEST_KEY);
+  check("malformed JSON is 400", badJson.status === 400, `${badJson.status}`);
+
+  const invalid = await ingest({ ...ingestBody, outcome: "nope" });
+  check("invalid enum is 400", invalid.status === 400, `${invalid.status}`);
+  const invalidBody = (await invalid.json()) as { issues?: Array<{ path: string }> };
+  check(
+    "400 names the offending field",
+    invalidBody.issues?.some((issue) => issue.path === "outcome") === true,
+  );
+
+  const created = await ingest(ingestBody);
+  const createdBody = (await created.json()) as {
+    id: string;
+    created: boolean;
+    messageCount: number;
+    durationSec: number;
+  };
+  check("valid conversation is 201", created.status === 201, `${created.status}`);
+  check("server computed messageCount", createdBody.messageCount === 3, `${createdBody.messageCount}`);
+  check("server computed durationSec", createdBody.durationSec === 10, `${createdBody.durationSec}`);
+
+  const again = await ingest(ingestBody);
+  const againBody = (await again.json()) as { id: string; created: boolean };
+  check("re-sending is 200, not a duplicate", again.status === 200, `${again.status}`);
+  check("same id on re-send", againBody.id === createdBody.id);
+
+  const search = await get("/conversations?q=Deshpande");
+  const searchHtml = await search.text();
+  check("ingested conversation appears in the list", searchHtml.includes("Rahul Deshpande"));
+
+  const detail = await get(`/conversations/${createdBody.id}`);
+  const detailText = await detail.text();
+  check("ingested conversation opens", detail.status === 200, `${detail.status}`);
+  check("its tool call rendered", detailText.includes("Check availability"));
+
+  const probe = await fetch(ingestUrl, {
+    headers: { authorization: `Bearer ${INGEST_KEY}` },
+  });
+  check("GET probe confirms credentials", probe.status === 200);
+
+  // Rate limit: 60/min, so the 61st within the window must be refused.
+  let limited: Response | null = null;
+  for (let i = 0; i < 62; i += 1) {
+    const response = await ingest({ ...ingestBody, externalId: `conv_rate_${i}` });
+    if (response.status === 429) {
+      limited = response;
+      break;
+    }
+  }
+  check("rate limit kicks in", limited !== null, limited ? "429 returned" : "never limited");
+  check(
+    "429 carries Retry-After",
+    limited?.headers.get("retry-after") !== null && limited?.headers.get("retry-after") !== undefined,
   );
 
   console.log(

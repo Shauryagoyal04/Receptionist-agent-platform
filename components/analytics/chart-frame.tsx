@@ -6,17 +6,22 @@ import { cn } from "@/lib/utils";
 /**
  * Shared frame for every chart.
  *
- * Owns the title, the empty state and the fixed height. The height is set
- * here rather than inside each chart so the loading skeleton can declare the
- * same number and the page does not jump when data arrives.
+ * Owns the title, the empty state, the fixed height and the chart's text
+ * alternative. The height is set here rather than inside each chart so the
+ * loading skeleton can declare the same number and the page does not jump
+ * when data arrives.
  */
 export const CHART_HEIGHT = 240;
+
+export type ChartTableRow = { label: string; value: string };
 
 export function ChartFrame({
   title,
   description,
   isEmpty,
   emptyLabel = "No conversations in this range",
+  tableCaption,
+  tableRows,
   className,
   children,
 }: {
@@ -24,6 +29,17 @@ export function ChartFrame({
   description?: string;
   isEmpty: boolean;
   emptyLabel?: string;
+  /** Describes what the equivalent table contains. */
+  tableCaption?: string;
+  /**
+   * The same figures the chart draws, as text.
+   *
+   * An SVG plot is unreadable to a screen reader, and `aria-label` on a chart
+   * can only ever summarize it. A real table carries every value, so the
+   * page is usable without seeing it — which is also what makes the numbers
+   * copyable.
+   */
+  tableRows?: ChartTableRow[];
   className?: string;
   children: React.ReactNode;
 }) {
@@ -48,7 +64,30 @@ export function ChartFrame({
             {emptyLabel}
           </div>
         ) : (
-          children
+          <>
+            {/* The plot itself carries no information for assistive tech; the
+                table below is the accessible copy. */}
+            <div aria-hidden="true">{children}</div>
+            {tableRows && tableRows.length > 0 && (
+              <table className="sr-only">
+                <caption>{tableCaption ?? title}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Label</th>
+                    <th scope="col">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row) => (
+                    <tr key={row.label}>
+                      <th scope="row">{row.label}</th>
+                      <td>{row.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

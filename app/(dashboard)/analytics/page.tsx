@@ -31,11 +31,13 @@ import {
 import {
   addDaysToDateKey,
   daysBetweenKeys,
+  formatInZone,
   isDateOnly,
   zonedEndOfDay,
   zonedStartOfDay,
   zonedToday,
 } from "@/lib/time";
+import { INTENT_LABELS } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Analytics",
@@ -153,6 +155,13 @@ export default async function AnalyticsPage({
               description="Daily totals, with escalations overlaid"
               isEmpty={false}
               className="lg:col-span-2"
+              tableCaption="Conversations and escalations per day"
+              tableRows={summary.days.map((bucket) => ({
+                label: formatInZone(`${bucket.day}T12:00:00.000Z`, timeZone, {
+                  dateStyle: "medium",
+                }),
+                value: `${bucket.total} conversations, ${bucket.escalated} escalated`,
+              }))}
             >
               <VolumeChart days={summary.days} timeZone={timeZone} />
             </ChartFrame>
@@ -166,7 +175,18 @@ export default async function AnalyticsPage({
               </CardContent>
             </Card>
 
-            <ChartFrame title="Intent distribution" isEmpty={false}>
+            <ChartFrame
+              title="Intent distribution"
+              isEmpty={false}
+              tableCaption="Conversations by primary intent"
+              tableRows={summary.byIntent
+                .filter((entry) => entry.count > 0)
+                .sort((a, b) => b.count - a.count)
+                .map((entry) => ({
+                  label: INTENT_LABELS[entry.key],
+                  value: `${entry.count} (${(entry.share * 100).toFixed(1)}%)`,
+                }))}
+            >
               <IntentChart data={summary.byIntent} />
             </ChartFrame>
 
@@ -174,6 +194,11 @@ export default async function AnalyticsPage({
               title="Busiest hours"
               description="Clinic local time — what staffing follows"
               isEmpty={false}
+              tableCaption="Conversations by hour of day, clinic local time"
+              tableRows={summary.hours.map((count, hour) => ({
+                label: `${String(hour).padStart(2, "0")}:00`,
+                value: `${count} conversations`,
+              }))}
             >
               <HoursChart hours={summary.hours} />
             </ChartFrame>
@@ -182,6 +207,16 @@ export default async function AnalyticsPage({
               title="Negative sentiment"
               description="Share of conversations per day"
               isEmpty={false}
+              tableCaption="Share of conversations ending in negative sentiment, per day"
+              tableRows={summary.days.map((bucket) => ({
+                label: formatInZone(`${bucket.day}T12:00:00.000Z`, timeZone, {
+                  dateStyle: "medium",
+                }),
+                value:
+                  bucket.total > 0
+                    ? `${((bucket.negative / bucket.total) * 100).toFixed(1)}% (${bucket.negative} of ${bucket.total})`
+                    : "no conversations",
+              }))}
             >
               <SentimentChart days={summary.days} timeZone={timeZone} />
             </ChartFrame>

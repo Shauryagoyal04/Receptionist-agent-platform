@@ -20,6 +20,17 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
 
   return (
     <div className="min-h-svh">
+      {/*
+        Keyboard users would otherwise tab through the whole rail on every
+        page load before reaching the table they came for.
+      */}
+      <a
+        href="#main-content"
+        className="bg-background focus:ring-ring sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:border focus:px-3 focus:py-2 focus:text-sm focus:ring-2"
+      >
+        Skip to content
+      </a>
+
       {/* Desktop: a fixed 240px rail. Hidden below lg, where the top bar
           carries the same destinations as tabs. */}
       <aside className="bg-sidebar text-sidebar-foreground border-sidebar-border fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r lg:flex">
@@ -66,7 +77,9 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
         <MobileNav />
       </header>
 
-      <div className="lg:pl-60">{children}</div>
+      <div id="main-content" className="lg:pl-60">
+        {children}
+      </div>
     </div>
   );
 }

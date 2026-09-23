@@ -368,6 +368,33 @@ async function update(
   if (result.matchedCount === 0) throw new Error("Conversation not found.");
 }
 
+/**
+ * Creates or updates a conversation delivered by the agent.
+ *
+ * Idempotent on `externalId`: re-delivering the same conversation updates it
+ * in place rather than producing a duplicate, which matters because an agent
+ * that times out mid-POST will retry.
+ */
+export async function upsertIngestedConversation(
+  clinicId: string,
+  externalId: string,
+  document: Document,
+): Promise<{ id: string; created: boolean }> {
+  const result = await (await collection()).findOneAndUpdate(
+    { clinicId, externalId },
+    {
+      $set: { ...document, clinicId, externalId },
+      // Preserve staff annotations across a re-delivery — a reviewer's note
+      // must not be wiped by the agent resending the transcript.
+      $setOnInsert: { reviewedBy: null, reviewedAt: null, staffNote: null },
+    },
+    { upsert: true, returnDocument: "after", includeResultMetadata: true },
+  );
+
+  const id = String(result.value?._id ?? "");
+  return { id, created: result.lastErrorObject?.updatedExisting !== true };
+}
+
 /** Indexes the list and analytics queries depend on. Run by `npm run db:setup`. */
 export async function ensureConversationIndexes(): Promise<void> {
   const conversations = await collection();
