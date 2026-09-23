@@ -2,6 +2,8 @@
 
 **Audience:** the engineer working on [`reizn7/clinic-ai-agent`](https://github.com/reizn7/clinic-ai-agent) (Python v2, Google ADK + Gemini + MongoDB).
 
+> **Build order:** this document is the *shape*. [`agent-roadmap.md`](agent-roadmap.md) is the *order*, with effort estimates and the reasoning behind each priority. Start there.
+
 **Why this exists.** The staff console reads the same MongoDB the agent writes. Today the agent stores transcripts as one append-only document per phone number:
 
 ```js
@@ -96,7 +98,7 @@ On failure: `status: "error"`, `result: null`, `error` set to the message. **Ple
 | `language` | `"en"` \| `"hi"` | Detect once; Hinglish counts as `hi`. |
 | `messages[].latencyMs` | number \| null | Wall-clock time around the `Runner.run_async` call, on agent messages. |
 | `messages[].confidence` | number 0–1 \| null | Only if the model exposes it. The console flags anything below 0.7. |
-| `channel` | `"whatsapp"` \| `"voice"` \| `"web_chat"` | Constant `"whatsapp"` today; the field exists so voice later needs no migration. |
+| `channel` | `"whatsapp"` \| `"voice"` \| `"web_chat"` | Constant `"whatsapp"` today. The console hides its channel UI until more than one channel is enabled, so sending it costs nothing and voice later needs no migration. |
 | `tags[]` | array of string | Free-form, e.g. `"insurance"`, `"senior-citizen"`. |
 
 ---
@@ -201,7 +203,7 @@ db.conversations.createIndex({ phone: 1, startedAt: -1 });
 | `messages[].timestamp` | **Fatal.** No transcript ordering, no duration, no time axis — the console cannot be built. |
 | `startedAt` / session boundaries | **Fatal.** No conversation list, no date filters, no charts. |
 | `outcome` | The outcome column, the outcome chart and the booking KPI all go blank. |
-| `escalated` / `escalationReason` | The escalation banner and the "recent escalations" table — the most actionable thing on the analytics page — go empty. |
+| `escalated` / `escalationReason` | The **Awaiting follow-up** queue stays empty, so patients the agent promised a callback to are invisible to staff. This is the most actionable screen in the console. |
 | tool call messages | Tool reliability disappears, and a reviewer cannot see *why* a booking failed. |
 | `sentiment` | One chart and one column drop out. Everything else is fine. |
 | `latencyMs` / `confidence` | Per-message performance detail is lost. Nothing else is affected. |

@@ -4,7 +4,22 @@ A staff-facing web console for an AI virtual receptionist deployed at a clinic. 
 
 **The AI agent itself is not part of this project.** It lives in [`reizn7/clinic-ai-agent`](https://github.com/reizn7/clinic-ai-agent) — a Python service on Google ADK + Gemini that talks to patients over WhatsApp and writes to MongoDB. This console reads the same database.
 
-> **Before the console can show real data**, the agent needs to record a few things it currently does not — most importantly per-message timestamps and conversation boundaries. The exact shape is specified in **[docs/agent-data-contract.md](docs/agent-data-contract.md)**. Until then, `npm run seed` fills the console with realistic demo data so every screen is exercisable.
+> **Before the console can show real data**, the agent needs to record a few things it currently does not — most importantly per-message timestamps and conversation boundaries. The field-by-field shape is in **[docs/agent-data-contract.md](docs/agent-data-contract.md)**; the order to build it in is in **[docs/agent-roadmap.md](docs/agent-roadmap.md)**. Until then, `npm run seed` fills the console with realistic demo data so every screen is exercisable.
+
+### What this deployment supports today
+
+WhatsApp only, and **no human handoff** — nobody is notified when a patient asks for a person. Both are capability flags, not missing code: voice and handoff are fully modelled in the schema, indexes and data layer.
+
+| Flag | Default | Effect when off |
+| --- | --- | --- |
+| `ENABLED_CHANNELS` | `whatsapp` | The channel column, channel filter and Channels chart are hidden — with one channel they are the same value on every row. |
+| `HUMAN_HANDOFF_ENABLED` | `false` | "Escalated" reads as **"Asked for a human"**, the escalations card becomes an **Awaiting follow-up** queue, and the "Resolved without a human" KPI is hidden because it is pinned at 100% by definition. |
+
+The headline KPI is **booking completion rate** — of conversations where the patient was trying to get an appointment, the share that ended with one booked. It stays meaningful whether or not a handoff process exists.
+
+`npm run check:capabilities` boots the console with both flags on and asserts every gated surface returns, so "hidden" cannot quietly become "deleted".
+
+Note that the agent currently tells patients *"I've let our clinic team know — someone will follow up"* and then only writes a log line. Once it persists that tool call, the follow-up queue fills with exactly those people. See [docs/agent-roadmap.md](docs/agent-roadmap.md).
 
 ## Stack
 
@@ -89,6 +104,9 @@ Sign up at `/signup`. The first account created in the database becomes `admin`;
 | `npm run seed:clear` | Remove seeded data |
 | `npm run verify` | Read everything back through the data layer against `.env.local` |
 | `npm run verify:local` | Same, but against a throwaway in-memory MongoDB — no cluster needed |
+| `npm run test:aggregate` | Analytics figures against hand-computed values |
+| `npm run smoke` | Full end-to-end: seeds, starts the server, signs in, fetches every page |
+| `npm run check:capabilities` | Boots with voice and handoff enabled; asserts every gated surface returns |
 
 `npm run verify:local` is the quickest way to confirm the data layer works on a clean checkout: it boots an ephemeral MongoDB, seeds it, then exercises pagination, substring search, facet combinations, neighbour lookup and range queries.
 
