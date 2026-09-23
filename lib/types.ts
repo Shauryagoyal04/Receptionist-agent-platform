@@ -425,3 +425,75 @@ export function toolLabel(name: string): string {
     ? TOOL_LABELS[name as ToolName]
     : name.replace(/_/g, " ");
 }
+
+/* ------------------------------------------------------------------ */
+/* Handoff vocabulary                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What to call an escalation, given whether a human actually picks it up.
+ *
+ * The data is identical either way — the patient asked to be passed to a
+ * person. What differs is whether that request was *fulfilled*. Saying
+ * "Escalated" when nobody was notified reads as "handled", which is the
+ * opposite of true, so with handoff off the console says "Asked for a human"
+ * and treats those conversations as an outstanding queue.
+ *
+ * Centralised here so the list, the detail page, the KPI and the table cannot
+ * drift into describing the same state three different ways.
+ */
+export type HandoffCopy = {
+  /** Outcome and status label for the escalated value. */
+  label: string;
+  /** KPI card title. */
+  kpiLabel: string;
+  /** Analytics table heading. */
+  tableTitle: string;
+  /** Empty state for that table. */
+  tableEmpty: string;
+  /** Link text through to the filtered list. */
+  tableLink: string;
+  /** Series name on the volume chart. */
+  seriesLabel: string;
+};
+
+export function handoffCopy(handoffEnabled: boolean): HandoffCopy {
+  if (handoffEnabled) {
+    return {
+      label: "Escalated",
+      kpiLabel: "Escalated to staff",
+      tableTitle: "Recent escalations",
+      tableEmpty:
+        "No escalations in this range — the agent handled everything itself.",
+      tableLink: "All escalations",
+      seriesLabel: "Escalated",
+    };
+  }
+
+  return {
+    label: "Asked for a human",
+    kpiLabel: "Asked for a human",
+    tableTitle: "Awaiting follow-up",
+    tableEmpty: "Nobody asked for a human in this range.",
+    tableLink: "All requests",
+    seriesLabel: "Asked for a human",
+  };
+}
+
+/** Outcome labels with the handoff wording applied. */
+export function outcomeLabels(handoffEnabled: boolean): Record<Outcome, string> {
+  return {
+    ...OUTCOME_LABELS,
+    escalated: handoffCopy(handoffEnabled).label,
+  };
+}
+
+/** Status labels with the handoff wording applied. */
+export function statusLabels(
+  handoffEnabled: boolean,
+): Record<ConversationStatus, string> {
+  return {
+    ...STATUS_LABELS,
+    escalated: handoffCopy(handoffEnabled).label,
+  };
+}

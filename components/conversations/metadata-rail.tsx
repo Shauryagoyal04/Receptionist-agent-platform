@@ -11,7 +11,7 @@ import {
   INTENT_LABELS,
   LANGUAGE_LABELS,
   SENTIMENT_LABELS,
-  STATUS_LABELS,
+  statusLabels,
   type Conversation,
 } from "@/lib/types";
 
@@ -24,9 +24,11 @@ import {
 export function MetadataRail({
   conversation,
   timeZone,
+  handoffEnabled,
 }: {
   conversation: Conversation;
   timeZone: string;
+  handoffEnabled: boolean;
 }) {
   const when = (iso: string | null) =>
     iso
@@ -50,7 +52,7 @@ export function MetadataRail({
           <dl className="flex flex-col gap-0 text-sm">
             <Row label="Status">
               <StatusBadge kind="status" value={conversation.status}>
-                {STATUS_LABELS[conversation.status]}
+                {statusLabels(handoffEnabled)[conversation.status]}
               </StatusBadge>
             </Row>
             <Row label="Sentiment">

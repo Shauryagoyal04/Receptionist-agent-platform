@@ -92,9 +92,12 @@ function dayLabel(day: string, timeZone: string): string {
 export function VolumeChart({
   days,
   timeZone,
+  escalationLabel,
 }: {
   days: DayBucket[];
   timeZone: string;
+  /** "Escalated" or "Asked for a human", depending on the deployment. */
+  escalationLabel: string;
 }) {
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -130,7 +133,7 @@ export function VolumeChart({
                   },
                   {
                     key: "escalated",
-                    label: "Escalated",
+                    label: escalationLabel,
                     value: String(bucket.escalated),
                     color: "var(--status-escalated)",
                   },

@@ -40,6 +40,8 @@ const env = {
   DEFAULT_CLINIC_ID: "main-clinic",
   DEFAULT_CLINIC_TIMEZONE: "Asia/Kolkata",
   SIGNUP_ALLOWED_DOMAINS: "hospital.example",
+  ENABLED_CHANNELS: "whatsapp",
+  HUMAN_HANDOFF_ENABLED: "false",
   INGEST_API_KEY: INGEST_KEY,
   NODE_ENV: "production" as const,
   PORT: String(PORT),
@@ -200,9 +202,25 @@ try {
   const analytics = await get("/analytics");
   const analyticsHtml = await analytics.text();
   check("/analytics renders", analytics.status === 200, `${analytics.status}`);
-  check("KPI label present", analyticsHtml.includes("Resolved without a human"));
+  check("headline KPI is booking completion", analyticsHtml.includes("Booking completion rate"));
+  check(
+    "the always-100% KPI is gone without handoff",
+    !analyticsHtml.includes("Resolved without a human"),
+  );
+  check(
+    "escalations are framed as a follow-up queue",
+    analyticsHtml.includes("Awaiting follow-up"),
+  );
+  check(
+    "the queue names the unmet request",
+    analyticsHtml.includes("Asked for a human"),
+  );
+  check(
+    "channels card hidden for a single channel",
+    !analyticsHtml.includes(">Channels<"),
+  );
   check("outcome legend rendered", analyticsHtml.includes("Booked"));
-  check("escalations table rendered", analyticsHtml.includes("Recent escalations"));
+  check("follow-up queue rendered", analyticsHtml.includes("All requests"));
   check("tool reliability rendered", analyticsHtml.includes("Tool reliability"));
   // Recharts measures the DOM, so ResponsiveContainer renders nothing during
   // SSR by design. Assert the chart frames are server-rendered instead.
@@ -234,6 +252,14 @@ try {
   check("/conversations renders", list.status === 200, `${list.status}`);
   check("pagination shows a total", /of\s*<!-- -->?\s*<span[^>]*>400|400<\/span>/.test(listHtml) || listHtml.includes("400"));
   check("filter chips rendered", listHtml.includes("Only unreviewed"));
+  check(
+    "channel column hidden for a single channel",
+    !listHtml.includes(">Channel<"),
+  );
+  check(
+    "channel filter group hidden for a single channel",
+    !listHtml.includes("Web chat"),
+  );
 
   const filtered = await get("/conversations?outcome=escalated&channel=voice");
   check("combined filters render", filtered.status === 200);

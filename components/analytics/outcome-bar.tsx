@@ -1,4 +1,4 @@
-import { OUTCOME_CHART_COLOR, OUTCOME_LABELS, type Outcome } from "@/lib/types";
+import { OUTCOME_CHART_COLOR, outcomeLabels, type Outcome } from "@/lib/types";
 import type { CountShare } from "@/lib/analytics/aggregate";
 
 /**
@@ -8,7 +8,14 @@ import type { CountShare } from "@/lib/analytics/aggregate";
  * curve, and "no resolution" at 4% is exactly the segment someone needs to
  * read accurately. One row plus explicit counts is both compact and precise.
  */
-export function OutcomeBar({ data }: { data: CountShare<Outcome>[] }) {
+export function OutcomeBar({
+  data,
+  handoffEnabled,
+}: {
+  data: CountShare<Outcome>[];
+  handoffEnabled: boolean;
+}) {
+  const label = outcomeLabels(handoffEnabled);
   const rows = data.filter((entry) => entry.count > 0);
   const total = rows.reduce((sum, entry) => sum + entry.count, 0);
 
@@ -28,7 +35,7 @@ export function OutcomeBar({ data }: { data: CountShare<Outcome>[] }) {
         aria-label={rows
           .map(
             (entry) =>
-              `${OUTCOME_LABELS[entry.key]}: ${entry.count}, ${(entry.share * 100).toFixed(1)} percent`,
+              `${label[entry.key]}: ${entry.count}, ${(entry.share * 100).toFixed(1)} percent`,
           )
           .join("; ")}
       >
@@ -53,7 +60,7 @@ export function OutcomeBar({ data }: { data: CountShare<Outcome>[] }) {
               className="size-2.5 shrink-0 rounded-sm"
               style={{ backgroundColor: OUTCOME_CHART_COLOR[entry.key] }}
             />
-            <span className="truncate">{OUTCOME_LABELS[entry.key]}</span>
+            <span className="truncate">{label[entry.key]}</span>
             <span className="tabular text-muted-foreground ml-auto font-mono text-xs">
               {entry.count} · {(entry.share * 100).toFixed(1)}%
             </span>

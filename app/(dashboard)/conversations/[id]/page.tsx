@@ -23,7 +23,7 @@ import {
   parseUrlFilters,
   toDataFilters,
 } from "@/lib/conversations/params";
-import { CHANNEL_LABELS, OUTCOME_LABELS } from "@/lib/types";
+import { CHANNEL_LABELS, outcomeLabels } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -38,7 +38,7 @@ export default async function ConversationDetailPage({
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const { DEFAULT_CLINIC_TIMEZONE: timeZone } = getServerEnv();
+  const { DEFAULT_CLINIC_TIMEZONE: timeZone, capabilities } = getServerEnv();
 
   // Both are Promises in Next.js 16.
   const [{ id }, raw] = await Promise.all([params, searchParams]);
@@ -78,9 +78,11 @@ export default async function ConversationDetailPage({
             <span className="tabular font-mono">
               {formatPhone(conversation.patient.phone)}
             </span>
-            <span>{CHANNEL_LABELS[conversation.channel]}</span>
+            {capabilities.showChannelUi && (
+              <span>{CHANNEL_LABELS[conversation.channel]}</span>
+            )}
             <StatusBadge kind="outcome" value={conversation.outcome}>
-              {OUTCOME_LABELS[conversation.outcome]}
+              {outcomeLabels(capabilities.handoffEnabled)[conversation.outcome]}
             </StatusBadge>
           </div>
         </div>
@@ -97,10 +99,25 @@ export default async function ConversationDetailPage({
           className="text-status-escalated bg-status-escalated-tint mt-4 flex items-start gap-2 rounded-md px-3 py-2 text-sm"
         >
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Handed to a human —{" "}
-            {conversation.escalationReason ?? "no reason recorded"}.
-          </span>
+          {capabilities.handoffEnabled ? (
+            <span>
+              Handed to a human —{" "}
+              {conversation.escalationReason ?? "no reason recorded"}.
+            </span>
+          ) : (
+            // Without a handoff process the agent still tells the patient
+            // someone will follow up. Saying "handed to a human" here would
+            // repeat that back to staff as though it were done — the opposite
+            // of what they need to know.
+            <span>
+              This patient asked for a human
+              {conversation.escalationReason
+                ? ` — ${conversation.escalationReason}`
+                : ""}
+              . The agent said someone would follow up, but nobody is notified
+              automatically. Reply to them directly.
+            </span>
+          )}
         </p>
       )}
 
@@ -114,7 +131,11 @@ export default async function ConversationDetailPage({
           </CardContent>
         </Card>
 
-        <MetadataRail conversation={conversation} timeZone={timeZone} />
+        <MetadataRail
+          conversation={conversation}
+          timeZone={timeZone}
+          handoffEnabled={capabilities.handoffEnabled}
+        />
       </div>
 
       {/* Prev/next walk the filtered queue, so a reviewer can work through it

@@ -2,6 +2,7 @@ import { median } from "@/lib/utils";
 import { addDaysToDateKey, zonedDayKey, zonedHour } from "@/lib/time";
 import {
   CHANNELS,
+  handoffCopy,
   INTENT_IDS,
   OUTCOMES,
   SENTIMENTS,
@@ -58,8 +59,19 @@ export type AnalyticsSummary = {
   total: number;
   escalated: number;
   booked: number;
-  /** 1 − escalated/total. The headline number. */
+  /** 1 − escalated/total. Only meaningful once a human actually picks up. */
   resolvedWithoutHumanRate: number;
+  /**
+   * Of conversations where the patient was trying to get an appointment, the
+   * share that ended with one booked.
+   *
+   * The headline number: it measures whether the agent does its job, and
+   * unlike "resolved without a human" it stays meaningful whether or not a
+   * handoff process exists.
+   */
+  bookingCompletionRate: number;
+  /** Denominator of the above — conversations that set out to book. */
+  bookingIntentTotal: number;
   medianDurationSec: number;
   avgMessagesPerConversation: number;
   byOutcome: CountShare<Outcome>[];
@@ -103,6 +115,18 @@ export function aggregate(
     (c) => c.outcome === "appointment_booked",
   ).length;
 
+  // Asking which doctor is free is a booking attempt too — the patient is
+  // trying to get an appointment, they just have not named a slot yet.
+  const bookingIntents = conversations.filter(
+    (c) =>
+      c.primaryIntent === "book_appointment" ||
+      c.primaryIntent === "doctor_availability",
+  );
+  const bookingIntentTotal = bookingIntents.length;
+  const bookingsFromIntent = bookingIntents.filter(
+    (c) => c.outcome === "appointment_booked",
+  ).length;
+
   // Every day in the range is seeded at zero first. A chart that silently
   // skips quiet days compresses the x-axis and makes a gap look like a dip.
   const days = new Map<string, DayBucket>();
@@ -140,6 +164,9 @@ export function aggregate(
     escalated,
     booked,
     resolvedWithoutHumanRate: total > 0 ? 1 - escalated / total : 0,
+    bookingCompletionRate:
+      bookingIntentTotal > 0 ? bookingsFromIntent / bookingIntentTotal : 0,
+    bookingIntentTotal,
     medianDurationSec: median(conversations.map((c) => c.durationSec)),
     avgMessagesPerConversation:
       total > 0
@@ -201,6 +228,7 @@ function aggregateToolReliability(
 /* ------------------------------------------------------------------ */
 
 export type KpiId =
+  | "bookingRate"
   | "resolved"
   | "handled"
   | "booked"
@@ -230,18 +258,31 @@ function change(current: number, previous: number): number | null {
   return (current - previous) / previous;
 }
 
+/**
+ * The KPI row, in display order. The first entry is rendered as the headline.
+ *
+ * "Resolved without a human" is included only when a handoff process exists.
+ * Without one it is pinned at 100% by definition — `1 − 0/total` — and putting
+ * a constant in the most prominent slot on the page trains people to ignore it.
+ */
 export function buildKpis(
   current: AnalyticsSummary,
   previous: AnalyticsSummary,
+  options: { handoffEnabled: boolean },
 ): Kpi[] {
-  return [
+  const handoff = handoffCopy(options.handoffEnabled);
+
+  const kpis: Kpi[] = [
     {
-      id: "resolved",
-      label: "Resolved without a human",
-      value: `${(current.resolvedWithoutHumanRate * 100).toFixed(1)}%`,
+      id: "bookingRate",
+      label: "Booking completion rate",
+      value:
+        current.bookingIntentTotal > 0
+          ? `${(current.bookingCompletionRate * 100).toFixed(1)}%`
+          : "—",
       delta: change(
-        current.resolvedWithoutHumanRate,
-        previous.resolvedWithoutHumanRate,
+        current.bookingCompletionRate,
+        previous.bookingCompletionRate,
       ),
       increaseIsGood: true,
     },
@@ -261,7 +302,7 @@ export function buildKpis(
     },
     {
       id: "escalated",
-      label: "Escalated to staff",
+      label: handoff.kpiLabel,
       value: current.escalated.toLocaleString("en-IN"),
       delta: change(current.escalated, previous.escalated),
       increaseIsGood: false,
@@ -284,6 +325,21 @@ export function buildKpis(
       increaseIsGood: false,
     },
   ];
+
+  if (options.handoffEnabled) {
+    kpis.push({
+      id: "resolved",
+      label: "Resolved without a human",
+      value: `${(current.resolvedWithoutHumanRate * 100).toFixed(1)}%`,
+      delta: change(
+        current.resolvedWithoutHumanRate,
+        previous.resolvedWithoutHumanRate,
+      ),
+      increaseIsGood: true,
+    });
+  }
+
+  return kpis;
 }
 
 function formatSeconds(seconds: number): string {

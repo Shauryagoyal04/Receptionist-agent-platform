@@ -138,16 +138,65 @@ check("preceding 7d range", precedingRange("2026-09-24", "2026-09-30"), { from: 
 check("single day", precedingRange("2026-09-30", "2026-09-30"), { from: "2026-09-29", to: "2026-09-29" });
 
 const half = aggregate(fixture.slice(0, 5), { from: "2026-09-01", to: "2026-09-30", timeZone: TZ });
-const kpis = buildKpis(s, half);
+const kpis = buildKpis(s, half, { handoffEnabled: false });
 const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
 check("handled 5 -> 10 is +100%", byId.handled.delta, 1);
 check("escalated increase is bad", byId.escalated.increaseIsGood, false);
 check("booked increase is good", byId.booked.increaseIsGood, true);
 check("messages-per-conversation increase is bad", byId.avgMessages.increaseIsGood, false);
-check("six KPIs", kpis.length, 6);
+check("six KPIs without handoff", kpis.length, 6);
+check("booking rate leads", kpis[0].id, "bookingRate");
+check(
+  "resolved-without-a-human is omitted without handoff",
+  kpis.some((k) => k.id === "resolved"),
+  false,
+);
+const withHandoff = buildKpis(s, half, { handoffEnabled: true });
+check("seven KPIs with handoff", withHandoff.length, 7);
+check(
+  "resolved-without-a-human returns with handoff",
+  withHandoff.some((k) => k.id === "resolved"),
+  true,
+);
+check("booking rate still leads", withHandoff[0].id, "bookingRate");
+check(
+  "escalation KPI is relabelled without handoff",
+  byId.escalated.label,
+  "Asked for a human",
+);
+check(
+  "escalation KPI keeps its name with handoff",
+  withHandoff.find((k) => k.id === "escalated")?.label,
+  "Escalated to staff",
+);
 
-const zeroBase = buildKpis(s, aggregate([], { from: "2026-09-01", to: "2026-09-30", timeZone: TZ }));
+const zeroBase = buildKpis(s, aggregate([], { from: "2026-09-01", to: "2026-09-30", timeZone: TZ }), { handoffEnabled: false });
 check("no delta against a zero baseline", zeroBase.find((k) => k.id === "handled")?.delta, null);
+
+console.log("\nbooking completion rate");
+// 4 booking-intent conversations, 3 of which booked -> 0.75
+const bookingFixture: Conversation[] = [
+  conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "book_appointment", outcome: "appointment_booked" }),
+  conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "book_appointment", outcome: "appointment_booked" }),
+  conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "doctor_availability", outcome: "appointment_booked" }),
+  conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "book_appointment", outcome: "no_resolution" }),
+  // Not a booking attempt — must not enter the denominator.
+  conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "clinic_info", outcome: "info_provided" }),
+  conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "report_status", outcome: "info_provided" }),
+];
+const booking = aggregate(bookingFixture, { from: "2026-09-01", to: "2026-09-30", timeZone: TZ });
+check("denominator counts only booking attempts", booking.bookingIntentTotal, 4);
+check("availability questions count as attempts", booking.bookingCompletionRate, 0.75);
+check("total is unaffected", booking.total, 6);
+
+const noAttempts = aggregate(
+  [conv({ startedAt: "2026-09-10T06:00:00.000Z", primaryIntent: "clinic_info", outcome: "info_provided" })],
+  { from: "2026-09-01", to: "2026-09-30", timeZone: TZ },
+);
+check("no booking attempts -> zero, not NaN", noAttempts.bookingCompletionRate, 0);
+check("no booking attempts -> zero denominator", noAttempts.bookingIntentTotal, 0);
+const dashKpi = buildKpis(noAttempts, noAttempts, { handoffEnabled: false })[0];
+check("zero denominator renders an em dash, not 0.0%", dashKpi.value, "\u2014");
 
 console.log(failures === 0 ? "\nAll aggregation checks passed.\n" : `\n${failures} FAILURE(S)\n`);
 process.exit(failures === 0 ? 0 : 1);

@@ -15,12 +15,12 @@ import { cn, formatDuration, formatPhone } from "@/lib/utils";
 import {
   CHANNEL_LABELS,
   INTENT_LABELS,
-  OUTCOME_LABELS,
   OUTCOME_TONE,
   SENTIMENT_LABELS,
   SENTIMENT_TONE,
   TONE_DOT_CLASS,
   TONE_RULE_CLASS,
+  outcomeLabels,
   type Channel,
   type Conversation,
 } from "@/lib/types";
@@ -43,18 +43,30 @@ const CHANNEL_ICONS: Record<Channel, typeof Phone> = {
 export function ConversationTable({
   conversations,
   queryString,
+  showChannel,
+  handoffEnabled,
 }: {
   conversations: Conversation[];
   /** Current filter state, carried into the detail page's back link. */
   queryString: string;
+  /**
+   * Hidden when only one channel can occur — a column repeating "WhatsApp" on
+   * every row costs horizontal space and tells the reader nothing.
+   */
+  showChannel: boolean;
+  handoffEnabled: boolean;
 }) {
+  const outcomeLabel = outcomeLabels(handoffEnabled);
+
   return (
     <div className="overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             <TableHead className="min-w-[180px]">Patient</TableHead>
-            <TableHead className="min-w-[110px]">Channel</TableHead>
+            {showChannel && (
+              <TableHead className="min-w-[110px]">Channel</TableHead>
+            )}
             <TableHead className="min-w-[140px]">Intent</TableHead>
             <TableHead className="min-w-[110px]">Outcome</TableHead>
             <TableHead className="text-right">Messages</TableHead>
@@ -67,6 +79,7 @@ export function ConversationTable({
         <TableBody>
           {conversations.map((conversation) => {
             const ChannelIcon = CHANNEL_ICONS[conversation.channel];
+
             const started = new Date(conversation.startedAt);
             const outcomeTone = OUTCOME_TONE[conversation.outcome];
             const sentimentTone = SENTIMENT_TONE[conversation.sentiment];
@@ -93,12 +106,14 @@ export function ConversationTable({
                   </span>
                 </TableCell>
 
-                <TableCell>
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <ChannelIcon className="size-3.5 shrink-0" />
-                    {CHANNEL_LABELS[conversation.channel]}
-                  </span>
-                </TableCell>
+                {showChannel && (
+                  <TableCell>
+                    <span className="text-muted-foreground flex items-center gap-1.5">
+                      <ChannelIcon className="size-3.5 shrink-0" />
+                      {CHANNEL_LABELS[conversation.channel]}
+                    </span>
+                  </TableCell>
+                )}
 
                 <TableCell className="text-muted-foreground">
                   {INTENT_LABELS[conversation.primaryIntent]}
@@ -106,7 +121,7 @@ export function ConversationTable({
 
                 <TableCell>
                   <StatusBadge kind="outcome" value={conversation.outcome}>
-                    {OUTCOME_LABELS[conversation.outcome]}
+                    {outcomeLabel[conversation.outcome]}
                   </StatusBadge>
                 </TableCell>
 

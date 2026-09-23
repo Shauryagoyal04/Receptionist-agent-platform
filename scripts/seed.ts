@@ -52,6 +52,23 @@ const CONVERSATION_COUNT = 400;
 const DAYS_BACK = 90;
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
+/** Relative weights when every channel is available. */
+const CHANNEL_WEIGHTS: Array<{ channel: Channel; weight: number }> = [
+  { channel: "web_chat", weight: 46 },
+  { channel: "voice", weight: 34 },
+  { channel: "whatsapp", weight: 20 },
+];
+
+/** Standalone parse so a dry run works without the strict env check. */
+function parseChannelList(raw: string): Channel[] {
+  const known = new Set<string>(["web_chat", "voice", "whatsapp"]);
+  const found = raw
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry): entry is Channel => known.has(entry));
+  return found.length > 0 ? found : ["whatsapp"];
+}
+
 /**
  * `npm run seed -- --dry-run` generates everything and prints the resulting
  * distributions without touching MongoDB. Useful for checking that the data
@@ -59,6 +76,16 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
  * the generator where no credentials are configured.
  */
 const DRY_RUN = process.argv.includes("--dry-run");
+
+/**
+ * `npm run seed -- --all-channels` ignores ENABLED_CHANNELS and generates the
+ * full voice / web-chat / WhatsApp mix.
+ *
+ * By default the seed mirrors what the deployment can actually produce, so a
+ * demo is not full of voice calls the product cannot take. This flag exists
+ * for building the voice UI before voice ships.
+ */
+const ALL_CHANNELS = process.argv.includes("--all-channels");
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness                                            */
@@ -765,6 +792,19 @@ async function main() {
       : `Seeding ${CONVERSATION_COUNT} conversations for clinic "${clinicId}" over the last ${DAYS_BACK} days…`,
   );
 
+  // Only generate channels this deployment can actually produce.
+  const enabledChannels: Channel[] = ALL_CHANNELS
+    ? ["web_chat", "voice", "whatsapp"]
+    : (env?.capabilities.enabledChannels ??
+      parseChannelList(process.env.ENABLED_CHANNELS ?? "whatsapp"));
+
+  const channelWeights = CHANNEL_WEIGHTS.filter((entry) =>
+    enabledChannels.includes(entry.channel),
+  );
+  if (channelWeights.length === 0) channelWeights.push({ channel: "whatsapp", weight: 1 });
+
+  console.log(`  channels: ${enabledChannels.join(", ")}`);
+
   const db = DRY_RUN ? null : await getDb();
 
   if (db && env) {
@@ -838,11 +878,7 @@ async function main() {
         })()
       : null;
 
-    const channel = pickWeighted<{ channel: Channel }>([
-      { channel: "web_chat", weight: 46 },
-      { channel: "voice", weight: 34 },
-      { channel: "whatsapp", weight: 20 },
-    ]).channel;
+    const channel = pickWeighted<{ channel: Channel }>(channelWeights).channel;
 
     const language: Language = chance(0.18) ? "hi" : "en";
     const escalationReason =

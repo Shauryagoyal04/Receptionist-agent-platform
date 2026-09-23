@@ -151,16 +151,26 @@ async function main() {
     `${escalated.total} escalated`,
   );
 
+  // Deliberately a combination that exists in WhatsApp-only data. A facet that
+  // matches nothing would make `.every()` vacuously true and stop this
+  // assertion testing anything at all.
   const combined = await listConversations(
     clinicId,
-    { ...EMPTY_FILTERS, outcome: ["appointment_booked"], channel: ["voice"] },
+    {
+      ...EMPTY_FILTERS,
+      outcome: ["appointment_booked"],
+      intent: ["book_appointment"],
+    },
     1,
   );
   expect(
     "two facets combine correctly",
-    combined.conversations.every(
-      (row) => row.outcome === "appointment_booked" && row.channel === "voice",
-    ),
+    combined.total > 0 &&
+      combined.conversations.every(
+        (row) =>
+          row.outcome === "appointment_booked" &&
+          row.primaryIntent === "book_appointment",
+      ),
     `${combined.total} matched`,
   );
 

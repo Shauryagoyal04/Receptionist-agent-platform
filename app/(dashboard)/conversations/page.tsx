@@ -37,7 +37,7 @@ export default async function ConversationsPage({
   // that — it can be rendered for a request the layout did not gate.
   if (!user) return null;
 
-  const { DEFAULT_CLINIC_TIMEZONE: timeZone } = getServerEnv();
+  const { DEFAULT_CLINIC_TIMEZONE: timeZone, capabilities } = getServerEnv();
 
   // `searchParams` is a Promise in Next.js 16.
   const raw = await searchParams;
@@ -61,7 +61,13 @@ export default async function ConversationsPage({
       />
 
       <div className="mt-6">
-        <FilterBar state={state} timeZone={timeZone} />
+        <FilterBar
+          state={state}
+          timeZone={timeZone}
+          enabledChannels={capabilities.enabledChannels}
+          showChannelUi={capabilities.showChannelUi}
+          handoffEnabled={capabilities.handoffEnabled}
+        />
       </div>
 
       <Card className="mt-4 overflow-hidden py-0">
@@ -70,6 +76,8 @@ export default async function ConversationsPage({
             <ConversationTable
               conversations={page.conversations}
               queryString={queryString}
+              showChannel={capabilities.showChannelUi}
+              handoffEnabled={capabilities.handoffEnabled}
             />
             <Pagination
               page={page.page}

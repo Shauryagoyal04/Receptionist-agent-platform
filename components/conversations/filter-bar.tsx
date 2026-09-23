@@ -14,17 +14,17 @@ import {
   type UrlFilterState,
 } from "@/lib/conversations/params";
 import {
-  CHANNELS,
   CHANNEL_LABELS,
   CONVERSATION_STATUSES,
   INTENT_IDS,
   INTENT_LABELS,
   OUTCOMES,
-  OUTCOME_LABELS,
   OUTCOME_TONE,
-  STATUS_LABELS,
   STATUS_TONE,
   TONE_DOT_CLASS,
+  outcomeLabels,
+  statusLabels,
+  type Channel,
 } from "@/lib/types";
 
 /**
@@ -38,12 +38,21 @@ import {
 export function FilterBar({
   state,
   timeZone,
+  enabledChannels,
+  showChannelUi,
+  handoffEnabled,
 }: {
   state: UrlFilterState;
   timeZone: string;
+  /** Only these are offered as chips, so no filter can match nothing. */
+  enabledChannels: Channel[];
+  showChannelUi: boolean;
+  handoffEnabled: boolean;
 }) {
   const { toggle, apply, clear } = useFilterNav(state);
   const active = hasActiveUrlFilters(state);
+  const outcomeLabel = outcomeLabels(handoffEnabled);
+  const statusLabel = statusLabels(handoffEnabled);
 
   return (
     <div className="flex flex-col gap-3">
@@ -82,7 +91,7 @@ export function FilterBar({
           legend="Outcome"
           values={OUTCOMES}
           selected={state.outcome}
-          labelOf={(value) => OUTCOME_LABELS[value]}
+          labelOf={(value) => outcomeLabel[value]}
           dotOf={(value) => TONE_DOT_CLASS[OUTCOME_TONE[value]]}
           onToggle={(value) => toggle("outcome", value)}
         />
@@ -90,7 +99,7 @@ export function FilterBar({
           legend="Status"
           values={CONVERSATION_STATUSES}
           selected={state.status}
-          labelOf={(value) => STATUS_LABELS[value]}
+          labelOf={(value) => statusLabel[value]}
           dotOf={(value) => TONE_DOT_CLASS[STATUS_TONE[value]]}
           onToggle={(value) => toggle("status", value)}
         />
@@ -101,13 +110,16 @@ export function FilterBar({
           labelOf={(value) => INTENT_LABELS[value]}
           onToggle={(value) => toggle("intent", value)}
         />
-        <ChipGroup
-          legend="Channel"
-          values={CHANNELS}
-          selected={state.channel}
-          labelOf={(value) => CHANNEL_LABELS[value]}
-          onToggle={(value) => toggle("channel", value)}
-        />
+        {/* One channel means every chip is either "everything" or "nothing". */}
+        {showChannelUi && (
+          <ChipGroup
+            legend="Channel"
+            values={enabledChannels}
+            selected={state.channel}
+            labelOf={(value) => CHANNEL_LABELS[value]}
+            onToggle={(value) => toggle("channel", value)}
+          />
+        )}
       </div>
     </div>
   );

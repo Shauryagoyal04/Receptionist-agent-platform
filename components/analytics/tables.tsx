@@ -18,14 +18,26 @@ import type {
 } from "@/lib/analytics/aggregate";
 
 /**
- * The most actionable thing on the page: conversations a human had to pick
- * up, newest first, each one click from the transcript.
+ * The most actionable thing on the page: conversations where the patient
+ * asked for a person, newest first, each one click from the transcript.
+ *
+ * With no handoff process this is a work queue rather than a log — the agent
+ * has told each of these patients that someone would follow up, and nobody
+ * has. `actionable` switches the column heading to say so.
  */
-export function EscalationTable({ rows }: { rows: EscalationRow[] }) {
+export function EscalationTable({
+  rows,
+  emptyLabel,
+  actionable = false,
+}: {
+  rows: EscalationRow[];
+  emptyLabel: string;
+  actionable?: boolean;
+}) {
   if (rows.length === 0) {
     return (
       <p className="text-muted-foreground px-4 py-10 text-center text-sm">
-        No escalations in this range — the agent handled everything itself.
+        {emptyLabel}
       </p>
     );
   }
@@ -34,9 +46,9 @@ export function EscalationTable({ rows }: { rows: EscalationRow[] }) {
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead>Patient</TableHead>
+          <TableHead>{actionable ? "Needs a reply" : "Patient"}</TableHead>
           <TableHead>Reason</TableHead>
-          <TableHead className="text-right">When</TableHead>
+          <TableHead className="text-right">Asked</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

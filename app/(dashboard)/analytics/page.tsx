@@ -37,7 +37,7 @@ import {
   zonedStartOfDay,
   zonedToday,
 } from "@/lib/time";
-import { INTENT_LABELS } from "@/lib/types";
+import { INTENT_LABELS, handoffCopy } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Analytics",
@@ -57,7 +57,7 @@ export default async function AnalyticsPage({
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const { DEFAULT_CLINIC_TIMEZONE: timeZone } = getServerEnv();
+  const { DEFAULT_CLINIC_TIMEZONE: timeZone, capabilities } = getServerEnv();
   const raw = await searchParams;
 
   const today = zonedToday(timeZone);
@@ -95,7 +95,10 @@ export default async function AnalyticsPage({
     timeZone,
   });
 
-  const kpis = buildKpis(summary, priorSummary);
+  const kpis = buildKpis(summary, priorSummary, {
+    handoffEnabled: capabilities.handoffEnabled,
+  });
+  const handoff = handoffCopy(capabilities.handoffEnabled);
   const [headline, ...rest] = kpis;
   const isEmpty = summary.total === 0;
   const periodLabel = `previous ${rangeDays} days`;
@@ -152,7 +155,7 @@ export default async function AnalyticsPage({
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <ChartFrame
               title="Conversation volume"
-              description="Daily totals, with escalations overlaid"
+              description={`Daily totals, with ${handoff.seriesLabel.toLowerCase()} overlaid`}
               isEmpty={false}
               className="lg:col-span-2"
               tableCaption="Conversations and escalations per day"
@@ -160,10 +163,14 @@ export default async function AnalyticsPage({
                 label: formatInZone(`${bucket.day}T12:00:00.000Z`, timeZone, {
                   dateStyle: "medium",
                 }),
-                value: `${bucket.total} conversations, ${bucket.escalated} escalated`,
+                value: `${bucket.total} conversations, ${bucket.escalated} ${handoff.seriesLabel.toLowerCase()}`,
               }))}
             >
-              <VolumeChart days={summary.days} timeZone={timeZone} />
+              <VolumeChart
+                days={summary.days}
+                timeZone={timeZone}
+                escalationLabel={handoff.seriesLabel}
+              />
             </ChartFrame>
 
             <Card className="gap-0 py-0">
@@ -171,7 +178,10 @@ export default async function AnalyticsPage({
                 <CardTitle className="text-sm font-medium">Outcomes</CardTitle>
               </CardHeader>
               <CardContent className="px-4 pt-3 pb-4">
-                <OutcomeBar data={summary.byOutcome} />
+                <OutcomeBar
+                  data={summary.byOutcome}
+                  handoffEnabled={capabilities.handoffEnabled}
+                />
               </CardContent>
             </Card>
 
@@ -221,28 +231,35 @@ export default async function AnalyticsPage({
               <SentimentChart days={summary.days} timeZone={timeZone} />
             </ChartFrame>
 
-            <Card className="gap-0 py-0 lg:col-span-2">
-              <CardHeader className="px-4 pt-4 pb-0">
-                <CardTitle className="text-sm font-medium">Channels</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pt-3 pb-4">
-                <ChannelSplit data={summary.byChannel} />
-              </CardContent>
-            </Card>
+            {/* A single channel renders one 100% bar, which is just noise. */}
+            {capabilities.showChannelUi && (
+              <Card className="gap-0 py-0 lg:col-span-2">
+                <CardHeader className="px-4 pt-4 pb-0">
+                  <CardTitle className="text-sm font-medium">Channels</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pt-3 pb-4">
+                  <ChannelSplit data={summary.byChannel} />
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <Card className="gap-0 overflow-hidden py-0">
               <CardHeader className="px-4 py-3">
                 <CardTitle className="text-sm font-medium">
-                  Recent escalations
+                  {handoff.tableTitle}
                 </CardTitle>
                 <ViewAllLink
                   href="/conversations?outcome=escalated"
-                  label="All escalations"
+                  label={handoff.tableLink}
                 />
               </CardHeader>
-              <EscalationTable rows={summary.recentEscalations} />
+              <EscalationTable
+                rows={summary.recentEscalations}
+                emptyLabel={handoff.tableEmpty}
+                actionable={!capabilities.handoffEnabled}
+              />
             </Card>
 
             <Card className="gap-0 overflow-hidden py-0">
