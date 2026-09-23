@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { TriangleAlert } from "lucide-react";
 
 import { PageHeader, PageShell } from "@/components/page-header";
 import { ConversationTable } from "@/components/conversations/conversation-table";
@@ -15,13 +14,12 @@ import { getServerEnv } from "@/lib/env";
 import {
   PAGE_SIZE,
   clinicHasAnyConversations,
-  decodeCursor,
   listConversations,
 } from "@/lib/data/conversations";
 import {
   buildQueryString,
   hasActiveUrlFilters,
-  parseCursorStack,
+  parsePage,
   parseUrlFilters,
   toDataFilters,
 } from "@/lib/conversations/params";
@@ -45,19 +43,15 @@ export default async function ConversationsPage({
   const raw = await searchParams;
   const state = parseUrlFilters(raw, timeZone);
   const filters = toDataFilters(state, timeZone);
-  const cursorStack = parseCursorStack(raw.cursor);
-  const cursor = decodeCursor(cursorStack[cursorStack.length - 1] ?? null);
 
   const [page, anyExist] = await Promise.all([
-    listConversations(user.clinicId, filters, cursor),
+    listConversations(user.clinicId, filters, parsePage(raw.page)),
     clinicHasAnyConversations(user.clinicId),
   ]);
 
   const filtered = hasActiveUrlFilters(state);
-  const queryString = buildQueryString(state, { cursors: cursorStack });
-
-  const rangeStart = cursorStack.length * PAGE_SIZE + 1;
-  const rangeEnd = rangeStart + page.conversations.length - 1;
+  const queryString = buildQueryString(state, { page: page.page });
+  const rangeStart = (page.page - 1) * PAGE_SIZE + 1;
 
   return (
     <PageShell>
@@ -70,19 +64,6 @@ export default async function ConversationsPage({
         <FilterBar state={state} timeZone={timeZone} />
       </div>
 
-      {page.truncated && (
-        <p
-          role="status"
-          className="text-status-abandoned bg-status-abandoned-tint mt-4 flex items-start gap-2 rounded-md px-3 py-2 text-sm"
-        >
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            This filter combination had to scan a lot of records, so the list
-            may be incomplete. Narrowing the date range will make it exact.
-          </span>
-        </p>
-      )}
-
       <Card className="mt-4 overflow-hidden py-0">
         {page.conversations.length > 0 ? (
           <>
@@ -91,21 +72,13 @@ export default async function ConversationsPage({
               queryString={queryString}
             />
             <Pagination
+              page={page.page}
+              pageCount={page.pageCount}
+              total={page.total}
               rangeStart={rangeStart}
-              rangeEnd={rangeEnd}
-              previousHref={
-                cursorStack.length > 0
-                  ? `/conversations${buildQueryString(state, {
-                      cursors: cursorStack.slice(0, -1),
-                    })}`
-                  : null
-              }
-              nextHref={
-                page.nextCursor
-                  ? `/conversations${buildQueryString(state, {
-                      cursors: [...cursorStack, page.nextCursor],
-                    })}`
-                  : null
+              rangeEnd={rangeStart + page.conversations.length - 1}
+              hrefFor={(target) =>
+                `/conversations${buildQueryString(state, { page: target })}`
               }
             />
           </>

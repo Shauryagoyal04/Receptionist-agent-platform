@@ -1,13 +1,8 @@
 import "server-only";
 
-import {
-  FieldPath,
-  Timestamp,
-  type CollectionReference,
-  type Query,
-} from "firebase-admin/firestore";
+import { ObjectId, type Collection, type Document, type Filter } from "mongodb";
 
-import { adminDb } from "@/lib/firebase/admin";
+import { COLLECTIONS, getDb } from "@/lib/mongodb";
 import {
   conversationSchema,
   messageSchema,
@@ -18,27 +13,18 @@ import {
   type Message,
   type Outcome,
 } from "@/lib/types";
-import { normalizeSearchQuery } from "@/lib/utils";
 
-const CONVERSATIONS = "conversations";
-const MESSAGES = "messages";
+/*
+ * Every read and write of conversation data.
+ *
+ * Documents are parsed through Zod on the way out and every Date becomes an
+ * ISO string, because Server Components cannot hand a Date-bearing object
+ * across the boundary to a Client Component without it being serialized
+ * anyway — doing it here keeps the shape explicit and validated.
+ */
 
 /** Rows shown per page in the conversations table. */
 export const PAGE_SIZE = 25;
-
-/**
- * How many documents a single page request may read before giving up.
- *
- * Firestore can only serve one facet server-side per query (see
- * `applyServerFilters`), so the rest are applied while walking cursor pages.
- * This caps that walk: a pathological filter combination costs a bounded
- * number of reads and reports itself as truncated rather than degrading into
- * a full-collection scan.
- */
-const SCAN_CAP = 600;
-
-/** Documents fetched per underlying Firestore round trip during that walk. */
-const SCAN_BATCH = 100;
 
 export type SortOrder = "newest" | "oldest";
 
@@ -66,176 +52,78 @@ export const EMPTY_FILTERS: ConversationFilters = {
   sort: "newest",
 };
 
-export function hasActiveFilters(filters: ConversationFilters): boolean {
-  return (
-    filters.q !== null ||
-    filters.status.length > 0 ||
-    filters.outcome.length > 0 ||
-    filters.intent.length > 0 ||
-    filters.channel.length > 0 ||
-    filters.from !== null ||
-    filters.to !== null ||
-    filters.unreviewedOnly
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Cursors                                                             */
-/* ------------------------------------------------------------------ */
-
-export type Cursor = { startedAt: string; id: string };
-
-export function encodeCursor(cursor: Cursor): string {
-  return Buffer.from(`${cursor.startedAt}|${cursor.id}`, "utf8").toString(
-    "base64url",
-  );
-}
-
-export function decodeCursor(raw: string | null): Cursor | null {
-  if (!raw) return null;
-  try {
-    const decoded = Buffer.from(raw, "base64url").toString("utf8");
-    const separator = decoded.indexOf("|");
-    if (separator === -1) return null;
-    const startedAt = decoded.slice(0, separator);
-    const id = decoded.slice(separator + 1);
-    if (!id || Number.isNaN(new Date(startedAt).getTime())) return null;
-    return { startedAt, id };
-  } catch {
-    return null;
-  }
+async function collection(): Promise<Collection<Document>> {
+  return (await getDb()).collection(COLLECTIONS.conversations);
 }
 
 /* ------------------------------------------------------------------ */
 /* Query construction                                                  */
 /* ------------------------------------------------------------------ */
 
-function collection(): CollectionReference {
-  return adminDb().collection(CONVERSATIONS);
+/** Escapes a user-typed string so it cannot inject regex syntax. */
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
- * Builds the server-side portion of the query.
+ * Builds the Mongo filter for a set of console filters.
  *
- * Firestore allows one `array-contains` and one `in` per query, and a
- * composite index must exist for every (equality fields…, range field)
- * combination. Rather than enumerate 2^n indexes, exactly one facet is pushed
- * to the server and the caller applies the rest in memory:
+ * Unlike the Firestore design this replaced, every facet combination is a
+ * single indexed query — there is no per-combination index to declare and no
+ * in-memory pass, so results and counts are always exact.
  *
- *   - when a search term is present it wins, because it is by far the most
- *     selective thing a receptionist can type;
- *   - otherwise the first active facet in a fixed priority order is used.
- *
- * Every combination this produces is covered by firestore.indexes.json.
+ * Search is a real case-insensitive substring match across the patient name,
+ * doctor name and phone digits: typing "meht" finds "Mehta". For the demo
+ * scale this is a straightforward regex; if the collection grows past a few
+ * hundred thousand conversations, swap the `$or` below for an Atlas Search
+ * index without changing any caller.
  */
-function applyServerFilters(
-  filters: ConversationFilters,
+function buildFilter(
   clinicId: string,
-): { query: Query; serverSide: Set<keyof ConversationFilters> } {
-  let query: Query = collection().where("clinicId", "==", clinicId);
-  const serverSide = new Set<keyof ConversationFilters>();
-
-  const searchToken = filters.q ? normalizeSearchQuery(filters.q) : null;
-
-  if (searchToken) {
-    query = query.where("searchTokens", "array-contains", searchToken);
-    serverSide.add("q");
-  } else if (filters.unreviewedOnly) {
-    query = query.where("reviewedBy", "==", null);
-    serverSide.add("unreviewedOnly");
-  } else if (filters.status.length > 0) {
-    query = query.where("status", "in", filters.status.slice(0, 30));
-    serverSide.add("status");
-  } else if (filters.outcome.length > 0) {
-    query = query.where("outcome", "in", filters.outcome.slice(0, 30));
-    serverSide.add("outcome");
-  } else if (filters.intent.length > 0) {
-    query = query.where("primaryIntent", "in", filters.intent.slice(0, 30));
-    serverSide.add("intent");
-  } else if (filters.channel.length > 0) {
-    query = query.where("channel", "in", filters.channel.slice(0, 30));
-    serverSide.add("channel");
-  }
-
-  if (filters.from) {
-    query = query.where(
-      "startedAt",
-      ">=",
-      Timestamp.fromDate(new Date(filters.from)),
-    );
-  }
-  if (filters.to) {
-    query = query.where(
-      "startedAt",
-      "<=",
-      Timestamp.fromDate(new Date(filters.to)),
-    );
-  }
-
-  const direction = filters.sort === "oldest" ? "asc" : "desc";
-  query = query
-    .orderBy("startedAt", direction)
-    // Ties on startedAt would make the cursor ambiguous and could skip or
-    // repeat a row across pages, so the document id is an explicit tiebreak.
-    .orderBy(FieldPath.documentId(), direction);
-
-  return { query, serverSide };
-}
-
-/** Applies the facets that could not be pushed to Firestore. */
-function matchesInMemory(
-  conversation: Conversation,
   filters: ConversationFilters,
-  serverSide: Set<keyof ConversationFilters>,
-): boolean {
-  if (
-    !serverSide.has("unreviewedOnly") &&
-    filters.unreviewedOnly &&
-    conversation.reviewedBy !== null
-  ) {
-    return false;
+): Filter<Document> {
+  const query: Filter<Document> = { clinicId };
+
+  if (filters.status.length > 0) query.status = { $in: filters.status };
+  if (filters.outcome.length > 0) query.outcome = { $in: filters.outcome };
+  if (filters.intent.length > 0) query.primaryIntent = { $in: filters.intent };
+  if (filters.channel.length > 0) query.channel = { $in: filters.channel };
+  if (filters.unreviewedOnly) query.reviewedBy = null;
+
+  if (filters.from || filters.to) {
+    const range: Record<string, Date> = {};
+    if (filters.from) range.$gte = new Date(filters.from);
+    if (filters.to) range.$lte = new Date(filters.to);
+    query.startedAt = range;
   }
-  if (
-    !serverSide.has("status") &&
-    filters.status.length > 0 &&
-    !filters.status.includes(conversation.status)
-  ) {
-    return false;
+
+  const term = filters.q?.trim();
+  if (term) {
+    const pattern = new RegExp(escapeRegex(term), "i");
+    const conditions: Filter<Document>[] = [
+      { "patient.name": pattern },
+      { doctorName: pattern },
+    ];
+    // A mostly-numeric query is a phone lookup. Matching the digits alone
+    // lets "98765 43210" and "9876543210" find the same person.
+    const digits = term.replace(/\D/g, "");
+    if (digits.length >= 3) {
+      conditions.push({ "patient.phone": new RegExp(escapeRegex(digits)) });
+    }
+    query.$or = conditions;
   }
-  if (
-    !serverSide.has("outcome") &&
-    filters.outcome.length > 0 &&
-    !filters.outcome.includes(conversation.outcome)
-  ) {
-    return false;
-  }
-  if (
-    !serverSide.has("intent") &&
-    filters.intent.length > 0 &&
-    !filters.intent.includes(conversation.primaryIntent)
-  ) {
-    return false;
-  }
-  if (
-    !serverSide.has("channel") &&
-    filters.channel.length > 0 &&
-    !filters.channel.includes(conversation.channel)
-  ) {
-    return false;
-  }
-  return true;
+
+  return query;
 }
 
-function parseConversation(
-  id: string,
-  data: FirebaseFirestore.DocumentData,
-): Conversation | null {
-  const parsed = conversationSchema.safeParse({ id, ...data });
+function parseConversation(doc: Document): Conversation | null {
+  const { _id, ...rest } = doc;
+  const parsed = conversationSchema.safeParse({ id: String(_id), ...rest });
   if (!parsed.success) {
     // One malformed document must not take down the whole page. Log it with
     // its id so it can be found and fixed, and skip it.
     console.error(
-      `[conversations] ${id} does not match the expected shape:`,
+      `[conversations] ${String(_id)} does not match the expected shape:`,
       parsed.error.issues,
     );
     return null;
@@ -249,63 +137,43 @@ function parseConversation(
 
 export type ConversationPage = {
   conversations: Conversation[];
-  nextCursor: string | null;
-  /** True when the scan cap stopped the walk before the range was exhausted. */
-  truncated: boolean;
+  /** Exact total for the current filters. Mongo counts cheaply. */
+  total: number;
+  page: number;
+  pageCount: number;
 };
 
 export async function listConversations(
   clinicId: string,
   filters: ConversationFilters,
-  cursor: Cursor | null,
+  page: number,
 ): Promise<ConversationPage> {
-  const { query, serverSide } = applyServerFilters(filters, clinicId);
+  const conversations = await collection();
+  const query = buildFilter(clinicId, filters);
+  const direction = filters.sort === "oldest" ? 1 : -1;
 
-  const matched: Conversation[] = [];
-  let scanned = 0;
-  let truncated = false;
-  let after: [Timestamp, string] | null = cursor
-    ? [Timestamp.fromDate(new Date(cursor.startedAt)), cursor.id]
-    : null;
+  const total = await conversations.countDocuments(query);
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // A page number past the end (a stale bookmark, or rows deleted since)
+  // should show the last page rather than an empty table.
+  const safePage = Math.min(Math.max(1, page), pageCount);
 
-  // One extra row tells us whether a next page exists without counting.
-  while (matched.length <= PAGE_SIZE) {
-    if (scanned >= SCAN_CAP) {
-      truncated = true;
-      break;
-    }
-
-    let batchQuery = query.limit(SCAN_BATCH);
-    if (after) batchQuery = batchQuery.startAfter(...after);
-
-    const snapshot = await batchQuery.get();
-    if (snapshot.empty) break;
-
-    for (const doc of snapshot.docs) {
-      scanned += 1;
-      const conversation = parseConversation(doc.id, doc.data());
-      if (conversation && matchesInMemory(conversation, filters, serverSide)) {
-        matched.push(conversation);
-      }
-    }
-
-    const last = snapshot.docs[snapshot.docs.length - 1];
-    after = [last.get("startedAt") as Timestamp, last.id];
-
-    if (snapshot.docs.length < SCAN_BATCH) break;
-  }
-
-  const hasMore = matched.length > PAGE_SIZE;
-  const conversations = matched.slice(0, PAGE_SIZE);
-  const lastRow = conversations[conversations.length - 1];
+  const docs = await conversations
+    .find(query)
+    // `_id` is the tiebreak so conversations sharing a startedAt cannot be
+    // skipped or repeated across page boundaries.
+    .sort({ startedAt: direction, _id: direction })
+    .skip((safePage - 1) * PAGE_SIZE)
+    .limit(PAGE_SIZE)
+    .toArray();
 
   return {
-    conversations,
-    nextCursor:
-      hasMore && lastRow
-        ? encodeCursor({ startedAt: lastRow.startedAt, id: lastRow.id })
-        : null,
-    truncated,
+    conversations: docs
+      .map(parseConversation)
+      .filter((entry): entry is Conversation => entry !== null),
+    total,
+    page: safePage,
+    pageCount,
   };
 }
 
@@ -314,149 +182,145 @@ export async function listConversations(
  *
  * Lets the empty state tell "nothing has been ingested yet — run the seed
  * script" apart from "nothing matches these filters", which need different
- * next steps. Uses an aggregation so it does not read the documents.
+ * next steps.
  */
 export async function clinicHasAnyConversations(
   clinicId: string,
 ): Promise<boolean> {
-  const snapshot = await collection()
-    .where("clinicId", "==", clinicId)
-    .count()
-    .get();
-  return snapshot.data().count > 0;
+  const count = await (await collection()).countDocuments({ clinicId }, { limit: 1 });
+  return count > 0;
 }
 
 export async function getConversationById(
   clinicId: string,
   id: string,
 ): Promise<Conversation | null> {
-  const snapshot = await collection().doc(id).get();
-  if (!snapshot.exists) return null;
-
-  const conversation = parseConversation(snapshot.id, snapshot.data() ?? {});
-  // A conversation belonging to a different clinic must read as "not found",
-  // never as "forbidden" — the caller turns this into notFound().
-  if (!conversation || conversation.clinicId !== clinicId) return null;
-  return conversation;
+  if (!ObjectId.isValid(id)) return null;
+  // The clinicId is part of the query, so a conversation belonging to another
+  // clinic reads as missing rather than forbidden — the caller turns this
+  // into notFound() and the page cannot leak that it exists.
+  const doc = await (await collection()).findOne({
+    _id: new ObjectId(id),
+    clinicId,
+  });
+  return doc ? parseConversation(doc) : null;
 }
 
-export async function getMessages(conversationId: string): Promise<Message[]> {
-  const snapshot = await collection()
-    .doc(conversationId)
-    .collection(MESSAGES)
-    .orderBy("timestamp", "asc")
-    .get();
+export async function getMessages(
+  clinicId: string,
+  conversationId: string,
+): Promise<Message[]> {
+  if (!ObjectId.isValid(conversationId)) return [];
+  const doc = await (await collection()).findOne(
+    { _id: new ObjectId(conversationId), clinicId },
+    { projection: { messages: 1 } },
+  );
+  if (!doc || !Array.isArray(doc.messages)) return [];
 
   const messages: Message[] = [];
-  for (const doc of snapshot.docs) {
-    const parsed = messageSchema.safeParse({ id: doc.id, ...doc.data() });
+  doc.messages.forEach((raw: unknown, index: number) => {
+    const parsed = messageSchema.safeParse({
+      // Messages are embedded rather than a separate collection: they are
+      // only ever read with their conversation, are bounded in size, and this
+      // way a transcript is one round trip instead of two.
+      id: `${conversationId}-${index}`,
+      ...(typeof raw === "object" && raw !== null ? raw : {}),
+    });
     if (parsed.success) {
       messages.push(parsed.data);
     } else {
       console.error(
-        `[messages] ${conversationId}/${doc.id} does not match the expected shape:`,
+        `[messages] ${conversationId}[${index}] does not match the expected shape:`,
         parsed.error.issues,
       );
     }
-  }
-  return messages;
+  });
+
+  return messages.sort(
+    (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+  );
 }
 
 /**
  * The conversations immediately before and after this one within the current
  * filter set, so a reviewer can work through a queue without going back to
- * the list. Returns null on either side when there is nothing there.
+ * the list.
  */
 export async function getAdjacentConversations(
   clinicId: string,
   current: Conversation,
   filters: ConversationFilters,
 ): Promise<{ previous: Conversation | null; next: Conversation | null }> {
-  const [previous, next] = await Promise.all([
-    findNeighbor(clinicId, current, filters, "previous"),
-    findNeighbor(clinicId, current, filters, "next"),
-  ]);
-  return { previous, next };
-}
-
-async function findNeighbor(
-  clinicId: string,
-  current: Conversation,
-  filters: ConversationFilters,
-  direction: "previous" | "next",
-): Promise<Conversation | null> {
-  // "Next" means further down the list as displayed. With the default newest
-  // -first sort that is an older conversation, so the traversal direction
-  // depends on the active sort.
+  const conversations = await collection();
+  const base = buildFilter(clinicId, filters);
   const descending = filters.sort !== "oldest";
-  const forward = direction === "next" ? descending : !descending;
+  const startedAt = new Date(current.startedAt);
+  const id = new ObjectId(current.id);
 
-  const probeFilters: ConversationFilters = {
-    ...filters,
-    sort: forward ? "newest" : "oldest",
+  // "Next" means further down the list as displayed, which with the default
+  // newest-first sort is an older conversation.
+  const after = descending ? "$lt" : "$gt";
+  const before = descending ? "$gt" : "$lt";
+
+  const neighbor = async (
+    operator: string,
+    direction: 1 | -1,
+  ): Promise<Conversation | null> => {
+    const doc = await conversations.findOne(
+      {
+        $and: [
+          base,
+          {
+            $or: [
+              { startedAt: { [operator]: startedAt } },
+              { startedAt, _id: { [operator]: id } },
+            ],
+          },
+        ],
+      },
+      { sort: { startedAt: direction, _id: direction } },
+    );
+    return doc ? parseConversation(doc) : null;
   };
 
-  const { query, serverSide } = applyServerFilters(probeFilters, clinicId);
-  const cursorValues: [Timestamp, string] = [
-    Timestamp.fromDate(new Date(current.startedAt)),
-    current.id,
-  ];
+  const [previous, next] = await Promise.all([
+    neighbor(before, descending ? 1 : -1),
+    neighbor(after, descending ? -1 : 1),
+  ]);
 
-  let after: [Timestamp, string] = cursorValues;
-  let scanned = 0;
-
-  while (scanned < SCAN_CAP) {
-    const snapshot = await query
-      .startAfter(...after)
-      .limit(SCAN_BATCH)
-      .get();
-    if (snapshot.empty) return null;
-
-    for (const doc of snapshot.docs) {
-      scanned += 1;
-      const conversation = parseConversation(doc.id, doc.data());
-      if (conversation && matchesInMemory(conversation, filters, serverSide)) {
-        return conversation;
-      }
-    }
-
-    const last = snapshot.docs[snapshot.docs.length - 1];
-    after = [last.get("startedAt") as Timestamp, last.id];
-    if (snapshot.docs.length < SCAN_BATCH) return null;
-  }
-
-  return null;
+  return { previous, next };
 }
 
 /**
  * Every conversation in a date range, for the analytics page.
  *
  * Deliberately separate from `listConversations`: §9 keeps fetching and
- * aggregating apart so the source can be swapped for daily rollups later
- * without touching the aggregation or the UI. `limit` is a safety valve, not
- * a pagination mechanism — the caller reports truncation.
+ * aggregating apart so the source can be swapped for pre-aggregated rollups
+ * later without touching the aggregation or the UI. `limit` is a safety
+ * valve, not pagination — the caller reports truncation.
  */
 export async function getConversationsInRange(
   clinicId: string,
   fromIso: string,
   toIso: string,
-  limit = 5000,
+  limit = 20000,
 ): Promise<{ conversations: Conversation[]; truncated: boolean }> {
-  const snapshot = await collection()
-    .where("clinicId", "==", clinicId)
-    .where("startedAt", ">=", Timestamp.fromDate(new Date(fromIso)))
-    .where("startedAt", "<=", Timestamp.fromDate(new Date(toIso)))
-    .orderBy("startedAt", "desc")
+  const docs = await (await collection())
+    .find({
+      clinicId,
+      startedAt: { $gte: new Date(fromIso), $lte: new Date(toIso) },
+    })
+    .sort({ startedAt: -1 })
     .limit(limit + 1)
-    .get();
+    .toArray();
 
-  const conversations: Conversation[] = [];
-  for (const doc of snapshot.docs.slice(0, limit)) {
-    const conversation = parseConversation(doc.id, doc.data());
-    if (conversation) conversations.push(conversation);
-  }
-
-  return { conversations, truncated: snapshot.docs.length > limit };
+  return {
+    conversations: docs
+      .slice(0, limit)
+      .map(parseConversation)
+      .filter((entry): entry is Conversation => entry !== null),
+    truncated: docs.length > limit,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -464,8 +328,8 @@ export async function getConversationsInRange(
 /* ------------------------------------------------------------------ */
 
 /**
- * The console is read-only apart from these two staff annotations. Both take
- * a clinicId and verify it, so a guessed document id from another clinic
+ * The console is read-only apart from these two staff annotations. Both match
+ * on clinicId as well as id, so a guessed document id from another clinic
  * cannot be written to.
  */
 export async function setStaffNote(
@@ -474,7 +338,7 @@ export async function setStaffNote(
   note: string,
 ): Promise<void> {
   const trimmed = note.trim();
-  await updateOwnedConversation(clinicId, id, {
+  await update(clinicId, id, {
     staffNote: trimmed.length > 0 ? trimmed : null,
   });
 }
@@ -482,26 +346,53 @@ export async function setStaffNote(
 export async function setReviewed(
   clinicId: string,
   id: string,
-  uid: string,
+  userId: string,
   reviewed: boolean,
 ): Promise<void> {
-  await updateOwnedConversation(clinicId, id, {
-    reviewedBy: reviewed ? uid : null,
-    reviewedAt: reviewed ? Timestamp.now() : null,
+  await update(clinicId, id, {
+    reviewedBy: reviewed ? userId : null,
+    reviewedAt: reviewed ? new Date() : null,
   });
 }
 
-async function updateOwnedConversation(
+async function update(
   clinicId: string,
   id: string,
-  data: FirebaseFirestore.UpdateData<FirebaseFirestore.DocumentData>,
+  patch: Document,
 ): Promise<void> {
-  const ref = collection().doc(id);
-  await adminDb().runTransaction(async (tx) => {
-    const snapshot = await tx.get(ref);
-    if (!snapshot.exists || snapshot.get("clinicId") !== clinicId) {
-      throw new Error("Conversation not found.");
-    }
-    tx.update(ref, data);
-  });
+  if (!ObjectId.isValid(id)) throw new Error("Conversation not found.");
+  const result = await (await collection()).updateOne(
+    { _id: new ObjectId(id), clinicId },
+    { $set: patch },
+  );
+  if (result.matchedCount === 0) throw new Error("Conversation not found.");
+}
+
+/** Indexes the list and analytics queries depend on. Run by `npm run db:setup`. */
+export async function ensureConversationIndexes(): Promise<void> {
+  const conversations = await collection();
+  await Promise.all([
+    conversations.createIndex({ clinicId: 1, startedAt: -1 }),
+    conversations.createIndex({ clinicId: 1, outcome: 1, startedAt: -1 }),
+    conversations.createIndex({ clinicId: 1, status: 1, startedAt: -1 }),
+    conversations.createIndex({ clinicId: 1, primaryIntent: 1, startedAt: -1 }),
+    conversations.createIndex({ clinicId: 1, channel: 1, startedAt: -1 }),
+    conversations.createIndex({ clinicId: 1, escalated: 1, startedAt: -1 }),
+    conversations.createIndex({ clinicId: 1, reviewedBy: 1, startedAt: -1 }),
+    conversations.createIndex({ "patient.phone": 1 }),
+    // Ingestion is idempotent on the agent's own id.
+    //
+    // A *partial* index, not a sparse one: sparse still indexes a field that
+    // is present and null, so every conversation written with
+    // `externalId: null` — which is all of them, until the agent adopts the
+    // contract — would collide on the second insert.
+    conversations.createIndex(
+      { externalId: 1 },
+      {
+        unique: true,
+        partialFilterExpression: { externalId: { $type: "string" } },
+        name: "externalId_unique",
+      },
+    ),
+  ]);
 }

@@ -1,4 +1,3 @@
-import { buildSearchTokens } from "@/lib/utils";
 import type { Message, ToolStat } from "@/lib/types";
 
 /*
@@ -9,6 +8,9 @@ import type { Message, ToolStat } from "@/lib/types";
  * here. The endpoint in particular must never trust a client-supplied
  * `messageCount` or `durationSec` — they drive the analytics page, so a buggy
  * or hostile agent could otherwise quietly skew every number on it.
+ *
+ * Search needs no precomputation on MongoDB: the conversations query matches
+ * patient and doctor names with a case-insensitive regex directly.
  */
 
 export type DerivableMessage = Pick<
@@ -25,7 +27,6 @@ export type DerivedFields = {
   agentMessageCount: number;
   avgAgentLatencyMs: number;
   lastMessagePreview: string;
-  searchTokens: string[];
   toolStats: Record<string, ToolStat>;
 };
 
@@ -33,9 +34,6 @@ const PREVIEW_MAX = 140;
 
 export function deriveConversationFields(input: {
   messages: DerivableMessage[];
-  patientName: string;
-  phone: string;
-  doctorName: string | null;
   /** Used when the conversation has no messages at all. */
   fallbackStartedAt: string;
 }): DerivedFields {
@@ -84,11 +82,6 @@ export function deriveConversationFields(input: {
     agentMessageCount,
     avgAgentLatencyMs,
     lastMessagePreview: buildPreview(ordered),
-    searchTokens: buildSearchTokens({
-      patientName: input.patientName,
-      phone: input.phone,
-      doctorName: input.doctorName,
-    }),
     toolStats: buildToolStats(ordered),
   };
 }

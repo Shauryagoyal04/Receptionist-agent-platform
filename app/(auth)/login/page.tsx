@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getServerEnv } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -19,11 +20,13 @@ function SignInFallback() {
 }
 
 export default function LoginPage() {
+  // Read on the server so the Google button only appears when configured.
+  const { googleEnabled } = getServerEnv();
   // SignInForm reads `?next=` with useSearchParams, which needs a Suspense
   // boundary so the rest of the page can still be prerendered.
   return (
     <Suspense fallback={<SignInFallback />}>
-      <SignInForm />
+      <SignInForm googleEnabled={googleEnabled} />
     </Suspense>
   );
 }

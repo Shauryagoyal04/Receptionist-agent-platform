@@ -1,112 +1,181 @@
 import "server-only";
 
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { ObjectId, type Collection, type Document } from "mongodb";
 
-import { adminDb } from "@/lib/firebase/admin";
+import { COLLECTIONS, getDb } from "@/lib/mongodb";
 import { getServerEnv } from "@/lib/env";
-import { appUserSchema, type AppUser } from "@/lib/types";
+import { userRoleSchema, type UserRole } from "@/lib/types";
 
-const USERS = "users";
-const CLINICS = "clinics";
+/*
+ * The console's own user records, stored in the `users` collection that the
+ * Auth.js MongoDB adapter also writes to. The adapter owns `name`, `email`,
+ * `emailVerified` and `image`; the extra fields below are ours.
+ */
 
-export async function getUserById(uid: string): Promise<AppUser | null> {
-  const snapshot = await adminDb().collection(USERS).doc(uid).get();
-  if (!snapshot.exists) return null;
-
-  const parsed = appUserSchema.safeParse({ uid: snapshot.id, ...snapshot.data() });
-  if (!parsed.success) {
-    // A malformed user document is a bug, not a signed-out user. Say so
-    // rather than silently bouncing the person to /login forever.
-    console.error(
-      `[users] users/${uid} does not match the expected shape:`,
-      parsed.error.issues,
-    );
-    return null;
-  }
-  return parsed.data;
-}
-
-type UpsertInput = {
-  uid: string;
+export type AppUserRecord = {
+  id: string;
   email: string | null;
   displayName: string | null;
   photoURL: string | null;
+  role: UserRole;
+  clinicId: string;
+  passwordHash: string | null;
 };
 
-/**
- * Creates the user document on first sign-in and refreshes `lastLoginAt`
- * afterwards.
- *
- * The first account ever created in the project becomes `admin`; everyone
- * else is `staff`. That check and the write happen inside one transaction,
- * because two people signing up at the same moment would otherwise both read
- * an empty collection and both become admin.
- */
-export async function upsertUserOnLogin(input: UpsertInput): Promise<AppUser> {
-  const db = adminDb();
-  const env = getServerEnv();
-  const userRef = db.collection(USERS).doc(input.uid);
+async function users(): Promise<Collection<Document>> {
+  return (await getDb()).collection(COLLECTIONS.users);
+}
 
-  const result = await db.runTransaction(async (tx) => {
-    const existing = await tx.get(userRef);
-    const now = Timestamp.now();
+/** Emails are matched case-insensitively, so Priya@ and priya@ are one account. */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
-    if (existing.exists) {
-      tx.update(userRef, {
-        email: input.email,
-        displayName: input.displayName,
-        photoURL: input.photoURL,
-        lastLoginAt: now,
-      });
-      return {
-        ...existing.data(),
-        uid: input.uid,
-        email: input.email,
-        displayName: input.displayName,
-        photoURL: input.photoURL,
-        lastLoginAt: now,
-      };
-    }
+function toRecord(doc: Document): AppUserRecord {
+  const role = userRoleSchema.safeParse(doc.role);
+  return {
+    id: String(doc._id),
+    email: typeof doc.email === "string" ? doc.email : null,
+    displayName: typeof doc.name === "string" ? doc.name : null,
+    photoURL: typeof doc.image === "string" ? doc.image : null,
+    // An unrecognized role must never widen access, so fall back to staff.
+    role: role.success ? role.data : "staff",
+    clinicId:
+      typeof doc.clinicId === "string"
+        ? doc.clinicId
+        : getServerEnv().DEFAULT_CLINIC_ID,
+    passwordHash: typeof doc.passwordHash === "string" ? doc.passwordHash : null,
+  };
+}
 
-    const anyUser = await tx.get(db.collection(USERS).limit(1));
-    const role = anyUser.empty ? "admin" : "staff";
+export async function findUserByEmail(
+  email: string,
+): Promise<AppUserRecord | null> {
+  const doc = await (await users()).findOne({ email: normalizeEmail(email) });
+  return doc ? toRecord(doc) : null;
+}
 
-    const created = {
-      email: input.email,
-      displayName: input.displayName,
-      photoURL: input.photoURL,
-      role,
-      clinicId: env.DEFAULT_CLINIC_ID,
-      createdAt: now,
-      lastLoginAt: now,
-    };
+export async function findUserById(id: string): Promise<AppUserRecord | null> {
+  if (!ObjectId.isValid(id)) return null;
+  const doc = await (await users()).findOne({ _id: new ObjectId(id) });
+  return doc ? toRecord(doc) : null;
+}
 
-    tx.set(userRef, created);
-    return { uid: input.uid, ...created };
-  });
-
-  await ensureClinicExists();
-
-  return appUserSchema.parse(result);
+export async function markSignedIn(id: string): Promise<void> {
+  if (!ObjectId.isValid(id)) return;
+  await (await users()).updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { lastLoginAt: new Date() } },
+  );
 }
 
 /**
- * The console assumes a single clinic. The document still exists so that
- * `clinicId` on every conversation points at something real, and so adding a
- * second clinic later is a new row rather than a migration.
+ * The first account created in the database becomes `admin`; everyone after is
+ * `staff`.
+ *
+ * `countDocuments` with a limit of 1 is cheap, but two simultaneous first
+ * sign-ups could still both read zero. The unique index on `email` means only
+ * one insert wins, and the loser retries as a normal user, so the worst case
+ * is a duplicate-key error rather than two admins.
  */
-async function ensureClinicExists(): Promise<void> {
-  const env = getServerEnv();
-  const clinicRef = adminDb().collection(CLINICS).doc(env.DEFAULT_CLINIC_ID);
-  const snapshot = await clinicRef.get();
-  if (snapshot.exists) return;
+async function nextRole(collection: Collection<Document>): Promise<UserRole> {
+  const existing = await collection.countDocuments({}, { limit: 1 });
+  return existing === 0 ? "admin" : "staff";
+}
 
-  await clinicRef.set(
-    {
-      name: "Main Clinic",
-      timezone: env.DEFAULT_CLINIC_TIMEZONE,
-      createdAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true },
+export async function createPasswordUser(input: {
+  email: string;
+  displayName: string;
+  passwordHash: string;
+}): Promise<AppUserRecord> {
+  const collection = await users();
+  const email = normalizeEmail(input.email);
+  const now = new Date();
+
+  const role = await nextRole(collection);
+
+  const result = await collection.insertOne({
+    email,
+    name: input.displayName,
+    image: null,
+    emailVerified: null,
+    passwordHash: input.passwordHash,
+    role,
+    clinicId: getServerEnv().DEFAULT_CLINIC_ID,
+    createdAt: now,
+    lastLoginAt: now,
+  });
+
+  return {
+    id: String(result.insertedId),
+    email,
+    displayName: input.displayName,
+    photoURL: null,
+    role,
+    clinicId: getServerEnv().DEFAULT_CLINIC_ID,
+    passwordHash: input.passwordHash,
+  };
+}
+
+/**
+ * Fills in the fields the Auth.js adapter does not know about after a Google
+ * sign-in. Runs on every Google sign-in, but only sets `role` and `clinicId`
+ * when they are missing, so an admin is never demoted by signing in again.
+ */
+export async function provisionOAuthUser(input: {
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}): Promise<void> {
+  if (!input.email) return;
+  const collection = await users();
+  const email = normalizeEmail(input.email);
+  const now = new Date();
+
+  const existing = await collection.findOne({ email });
+
+  if (!existing) {
+    // The adapter inserts the user immediately after this callback, so write
+    // a record it will merge with rather than racing it.
+    const role = await nextRole(collection);
+    await collection.updateOne(
+      { email },
+      {
+        $set: {
+          name: input.displayName,
+          image: input.photoURL,
+          lastLoginAt: now,
+        },
+        $setOnInsert: {
+          email,
+          emailVerified: null,
+          passwordHash: null,
+          role,
+          clinicId: getServerEnv().DEFAULT_CLINIC_ID,
+          createdAt: now,
+        },
+      },
+      { upsert: true },
+    );
+    return;
+  }
+
+  const patch: Document = { lastLoginAt: now };
+  if (input.displayName) patch.name = input.displayName;
+  if (input.photoURL) patch.image = input.photoURL;
+  if (typeof existing.role !== "string") patch.role = await nextRole(collection);
+  if (typeof existing.clinicId !== "string") {
+    patch.clinicId = getServerEnv().DEFAULT_CLINIC_ID;
+  }
+
+  await collection.updateOne({ email }, { $set: patch });
+}
+
+/** Indexes the console relies on. Created by `npm run db:setup`. */
+export async function ensureUserIndexes(): Promise<void> {
+  const collection = await users();
+  await collection.createIndex(
+    { email: 1 },
+    { unique: true, sparse: true, name: "email_unique" },
   );
 }

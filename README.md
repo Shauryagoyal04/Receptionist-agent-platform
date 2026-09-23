@@ -2,7 +2,9 @@
 
 A staff-facing web console for an AI virtual receptionist deployed at a clinic. Reception staff use it to review what the agent did: browse and filter conversations, read full transcripts including tool calls and escalations, and track aggregate performance.
 
-**The AI agent itself is not part of this project.** It delivers finished conversations to this app through an authenticated ingestion endpoint (`POST /api/ingest/conversation`). This console is administrative only — there are no clinical features.
+**The AI agent itself is not part of this project.** It lives in [`reizn7/clinic-ai-agent`](https://github.com/reizn7/clinic-ai-agent) — a Python service on Google ADK + Gemini that talks to patients over WhatsApp and writes to MongoDB. This console reads the same database.
+
+> **Before the console can show real data**, the agent needs to record a few things it currently does not — most importantly per-message timestamps and conversation boundaries. The exact shape is specified in **[docs/agent-data-contract.md](docs/agent-data-contract.md)**. Until then, `npm run seed` fills the console with realistic demo data so every screen is exercisable.
 
 ## Stack
 
@@ -13,8 +15,8 @@ A staff-facing web console for an AI virtual receptionist deployed at a clinic. 
 | Styling | Tailwind CSS v4, CSS-first config |
 | UI primitives | shadcn/ui (Radix) |
 | Charts | Recharts |
-| Auth | Firebase Auth on the client, session cookies verified by firebase-admin on the server |
-| Database | Cloud Firestore, read and written only through the Admin SDK |
+| Auth | Auth.js (NextAuth v5) — email/password + Google, JWT session cookie |
+| Database | MongoDB (official driver, no ODM) |
 | Validation | Zod at every boundary |
 
 ### A note on Next.js 16
@@ -37,27 +39,25 @@ This project runs Next.js 16, which renamed and changed several App Router APIs.
 npm install
 ```
 
-### 2. Create a Firebase project
-
-In the [Firebase console](https://console.firebase.google.com):
-
-1. Create a project and add a **Web app**. Copy its config into the `NEXT_PUBLIC_FIREBASE_*` variables.
-2. Enable **Authentication → Sign-in method → Email/Password** and **Google**.
-3. Add your deployment domain under **Authentication → Settings → Authorized domains**. Google sign-in fails silently in production if you skip this.
-4. Create a **Firestore** database.
-5. Go to **Project settings → Service accounts → Generate new private key**. Use that JSON for the `FIREBASE_*` server variables.
-
-### 3. Configure environment
+### 2. Configure
 
 ```bash
 cp .env.example .env.local
 ```
 
-Fill in every value. `FIREBASE_PRIVATE_KEY` must keep its newlines escaped as `\n` and stay wrapped in quotes.
+- **`MONGODB_URI`** — the same cluster the agent uses. On Atlas: *Database → Connect → Drivers*, and allow your IP.
+- **`AUTH_SECRET`** — `openssl rand -base64 32`.
+- **`AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`** — optional. Leave both blank and the Google button is hidden rather than shown and broken. When you do set them, add `https://your-domain/api/auth/callback/google` (and the `localhost:3000` equivalent) as an authorized redirect URI in the Google Cloud console.
+- **`SIGNUP_ALLOWED_DOMAINS`** — comma-separated email domains permitted to create accounts. **If you leave it empty, anyone can sign up**; the app logs a warning at boot when that happens.
+- **`INGEST_API_KEY`** — `openssl rand -hex 32`.
 
-Set `SIGNUP_ALLOWED_DOMAINS` to a comma-separated list of email domains permitted to create accounts (for example `hospital.example`). **If you leave it empty, anyone can sign up** — the app logs a warning at boot when this happens.
+### 3. Create indexes
 
-Generate an ingestion key with `openssl rand -hex 32` and put it in `INGEST_API_KEY`.
+```bash
+npm run db:setup
+```
+
+Idempotent. `npm run seed` does this too, so a fresh demo database needs nothing extra — this exists for pointing the console at a database that already holds real agent data.
 
 ### 4. Seed demo data
 
@@ -65,7 +65,9 @@ Generate an ingestion key with `openssl rand -hex 32` and put it in `INGEST_API_
 npm run seed
 ```
 
-This writes one clinic and roughly 400 conversations spread over the last 90 days, each with a full message subcollection. Volume follows real clinic hours, so the analytics charts have a believable shape. `npm run seed:clear` wipes it again.
+Writes ~400 conversations across the last 90 days. Volume follows real clinic hours (busy 10–12 and 17–19, near-silent overnight, thin on Sundays), outcomes and sentiment are correlated rather than random, and booking flows carry genuine `check_availability → book_appointment → send_confirmation` tool sequences with some realistic failures. Generated from a fixed PRNG seed, so it is reproducible.
+
+`npm run seed:clear` removes it again — only documents marked `seeded: true`, so anything the real agent wrote survives.
 
 ### 5. Run
 
@@ -73,7 +75,7 @@ This writes one clinic and roughly 400 conversations spread over the last 90 day
 npm run dev
 ```
 
-Sign up at `/signup` with an address matching your allowlist. The first account created in the project becomes `admin`; every later account is `staff`.
+Sign up at `/signup`. The first account created in the database becomes `admin`; every later account is `staff`.
 
 ## Scripts
 
@@ -81,11 +83,14 @@ Sign up at `/signup` with an address matching your allowlist. The first account 
 | --- | --- |
 | `npm run dev` | Development server |
 | `npm run build` | Production build |
-| `npm run start` | Serve the production build |
-| `npm run lint` | ESLint |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run seed` | Populate Firestore with demo data |
+| `npm run lint` / `npm run typecheck` | ESLint / `tsc --noEmit` |
+| `npm run db:setup` | Create MongoDB indexes |
+| `npm run seed` | Populate demo data (`-- --dry-run` prints distributions without writing) |
 | `npm run seed:clear` | Remove seeded data |
+| `npm run verify` | Read everything back through the data layer against `.env.local` |
+| `npm run verify:local` | Same, but against a throwaway in-memory MongoDB — no cluster needed |
+
+`npm run verify:local` is the quickest way to confirm the data layer works on a clean checkout: it boots an ephemeral MongoDB, seeds it, then exercises pagination, substring search, facet combinations, neighbour lookup and range queries.
 
 ## Layout
 
@@ -93,36 +98,45 @@ Sign up at `/signup` with an address matching your allowlist. The first account 
 app/
   (auth)/          login, signup
   (dashboard)/     analytics, conversations, conversations/[id]
-  api/             auth/session, auth/signout, ingest/conversation
-  tokens/          design token reference
+  api/auth/[...nextauth]/   Auth.js
 components/
   auth/ shell/ conversations/ analytics/   feature components
   ui/                                       shadcn/ui primitives
 lib/
-  firebase/  client.ts, admin.ts
-  auth/      session.ts, actions.ts
-  data/      the only place Firestore is touched
-  analytics/ aggregate.ts — pure, testable
-  types.ts   unions, Zod schemas, label and color maps
-proxy.ts     session-cookie presence gate
-scripts/     seed.ts, seed-clear.ts
+  mongodb.ts   client singleton + collection names
+  auth/        Auth.js config, session reader, register action
+  data/        the only place MongoDB is touched
+  analytics/   aggregate.ts — pure, testable
+  types.ts     unions, Zod schemas, label and color maps
+proxy.ts       session-cookie presence gate
+scripts/       seed, verify, index setup
+docs/          agent-data-contract.md, ingest.md
 ```
 
 Two rules hold the data flow together:
 
-- **All Firestore access lives in `lib/data/*`.** The browser never queries Firestore; the security rules deny it outright. Pages receive plain serializable objects, and every Firestore `Timestamp` becomes an ISO string at the data-layer boundary, because Server Components cannot hand a `Timestamp` to a Client Component.
+- **All database access lives in `lib/data/*`.** The browser never queries MongoDB. Pages receive plain serializable objects, and every `Date` becomes an ISO string at the data-layer boundary.
 - **`lib/types.ts` is the single source for the domain vocabulary.** Intents, outcomes, statuses and their labels and colors are defined once so the list, the detail page and the charts cannot drift apart.
+
+## Collections
+
+The console shares one database with the agent.
+
+| Collection | Owner | Used for |
+| --- | --- | --- |
+| `conversations` | console | Everything the console shows. Transcripts are embedded, so a detail page is one round trip. |
+| `users`, `accounts`, `sessions` | console (Auth.js) | Sign-in |
+| `appointments`, `doctors`, `patients`, `clinic` | **agent** | Read-only |
+| `transcripts` | **agent** | Not read by the console — it is the agent's own prompt history |
 
 ## Security model
 
-Firestore security rules deny all client reads and writes on `conversations` and `messages`, and let a user read only their own `users/{uid}` document. Nothing writes from the client. The server uses the Admin SDK, which bypasses rules by design.
+`proxy.ts` only checks that a session cookie is *present* and redirects to `/login` when it is not. It is a routing convenience, **not** the security boundary — Next.js runs Server Functions as POSTs to the page route, so a matcher change can silently drop proxy coverage. Real authorization happens in `getCurrentUser()` (`lib/auth/session.ts`), which is called in the dashboard layout, in every page and in every Server Action.
 
-`proxy.ts` only checks that a session cookie is *present* and redirects to `/login` when it is not. It is a routing convenience, **not** the security boundary — Next.js runs Server Functions as POSTs to the page route, so a matcher change can silently drop proxy coverage. Real verification happens in `getCurrentUser()` (`lib/auth/session.ts`), which validates the cookie with `checkRevoked: true` and is called in the dashboard layout, in every API route and in every Server Action.
+Every query is scoped by `clinicId`, and a conversation belonging to another clinic reads as *not found* rather than *forbidden*, so the console cannot be used to confirm that a record exists elsewhere.
+
+Passwords are hashed with bcrypt at cost 12. An account created through Google has no password hash, and a credentials sign-in against it fails identically to a wrong password, so sign-in methods cannot be enumerated.
 
 ## Ingestion
 
-The agent posts finished conversations to `POST /api/ingest/conversation` with a bearer token. Derived fields (`messageCount`, `durationSec`, `searchTokens`, `lastMessagePreview`, `toolStats`) are computed server-side and never trusted from the payload. Requests are idempotent on a caller-supplied `externalId`. See [`docs/ingest.md`](docs/ingest.md) for the schema and a working `curl` example.
-
-## Known limitation: search
-
-Firestore has no substring search. The conversations search box matches **whole tokens** against a denormalized `searchTokens` array using `array-contains` — patient name parts, doctor name parts, and the last 4/5/6/10 digits of the phone number. Typing `meht` will not find `Mehta`; typing `mehta` will. This is deliberate: the alternative is loading the whole collection into memory, which stops working well before the demo data size. If real substring search becomes a requirement, put a search index (Algolia, Typesense) in front of it rather than removing the constraint.
+The agent posts finished conversations to `POST /api/ingest/conversation` with a bearer token. Derived fields (`messageCount`, `durationSec`, `lastMessagePreview`, `toolStats`) are computed server-side and never trusted from the payload. Requests are idempotent on a caller-supplied `externalId`. See [`docs/ingest.md`](docs/ingest.md) for the schema and a working `curl` example, and [`docs/agent-data-contract.md`](docs/agent-data-contract.md) for what the agent needs to record.

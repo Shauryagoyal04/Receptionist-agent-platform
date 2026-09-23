@@ -3,16 +3,23 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { signIn } from "next-auth/react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/auth/google-button";
-import { authErrorMessage, isSilentAuthError } from "@/lib/auth/errors";
-import { signInWithGoogle, signUpWithEmail } from "@/lib/auth/client-actions";
+import { authErrorMessage } from "@/lib/auth/errors";
+import { registerUser } from "@/lib/auth/register";
 
-export function SignUpForm({ allowedDomains }: { allowedDomains: string[] }) {
+export function SignUpForm({
+  allowedDomains,
+  googleEnabled,
+}: {
+  allowedDomains: string[];
+  googleEnabled: boolean;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -20,29 +27,51 @@ export function SignUpForm({ allowedDomains }: { allowedDomains: string[] }) {
 
   const pending = busy || isPending;
 
-  async function run(action: () => Promise<void>) {
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+
     setError(null);
     setBusy(true);
+
     try {
-      await action();
+      const created = await registerUser({
+        name: String(form.get("name") ?? "").trim(),
+        email,
+        password,
+      });
+
+      if (!created.ok) {
+        setError(created.error);
+        return;
+      }
+
+      // Registration does not establish a session, so sign in with the same
+      // credentials immediately rather than making someone type them twice.
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(
+          "Your account was created, but signing in failed. Try signing in.",
+        );
+        return;
+      }
+
       startTransition(() => {
         router.replace("/analytics");
         router.refresh();
       });
     } catch (caught) {
-      if (!isSilentAuthError(caught)) setError(authErrorMessage(caught));
+      setError(authErrorMessage(caught));
     } finally {
       setBusy(false);
     }
-  }
-
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const name = String(form.get("name") ?? "").trim();
-    const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "");
-    await run(() => signUpWithEmail(name, email, password));
   }
 
   return (
@@ -99,12 +128,12 @@ export function SignUpForm({ allowedDomains }: { allowedDomains: string[] }) {
             type="password"
             autoComplete="new-password"
             required
-            minLength={6}
+            minLength={8}
             disabled={pending}
             aria-describedby="password-hint"
           />
           <p id="password-hint" className="text-muted-foreground text-xs">
-            At least 6 characters.
+            At least 8 characters.
           </p>
         </div>
 
@@ -124,17 +153,24 @@ export function SignUpForm({ allowedDomains }: { allowedDomains: string[] }) {
         </Button>
       </form>
 
-      <div className="flex items-center gap-3">
-        <span className="bg-border h-px flex-1" />
-        <span className="text-muted-foreground text-xs">or</span>
-        <span className="bg-border h-px flex-1" />
-      </div>
+      {googleEnabled && (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="bg-border h-px flex-1" />
+            <span className="text-muted-foreground text-xs">or</span>
+            <span className="bg-border h-px flex-1" />
+          </div>
 
-      <GoogleButton
-        label="Sign up with Google"
-        disabled={pending}
-        onClick={() => void run(() => signInWithGoogle("signup"))}
-      />
+          <GoogleButton
+            label="Sign up with Google"
+            disabled={pending}
+            onClick={() => {
+              setBusy(true);
+              void signIn("google", { redirectTo: "/analytics" });
+            }}
+          />
+        </>
+      )}
 
       <p className="text-muted-foreground text-sm">
         Already have an account?{" "}

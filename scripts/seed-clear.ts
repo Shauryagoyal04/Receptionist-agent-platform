@@ -2,58 +2,34 @@
  * Removes everything `npm run seed` wrote.
  *
  * Only documents carrying `seeded: true` are deleted, so a conversation that
- * arrived through the real ingestion endpoint survives a reset of the demo
- * data. Message subcollections are deleted explicitly — Firestore does not
- * cascade, and deleting only the parent would leave orphaned transcripts
- * that still cost storage and can never be reached.
+ * arrived from the real agent survives a reset of the demo data. Messages are
+ * embedded in the conversation document, so removing the conversation removes
+ * its transcript with it — there is nothing to cascade.
  */
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ path: ".env", quiet: true });
 
-import { adminDb } from "@/lib/firebase/admin";
+import { COLLECTIONS, getDb, getMongoClientPromise } from "@/lib/mongodb";
 import { getServerEnv } from "@/lib/env";
 
-const PAGE = 100;
-
 async function main() {
-  const env = getServerEnv();
-  const db = adminDb();
-  const clinicId = env.DEFAULT_CLINIC_ID;
+  const { DEFAULT_CLINIC_ID: clinicId } = getServerEnv();
+  const db = await getDb();
 
   console.log(`Clearing seeded conversations for clinic "${clinicId}"…`);
 
-  let removed = 0;
+  const result = await db
+    .collection(COLLECTIONS.conversations)
+    .deleteMany({ clinicId, seeded: true });
 
-  for (;;) {
-    const snapshot = await db
-      .collection("conversations")
-      .where("clinicId", "==", clinicId)
-      .where("seeded", "==", true)
-      .limit(PAGE)
-      .get();
+  console.log(`Done. Removed ${result.deletedCount} seeded conversations.`);
 
-    if (snapshot.empty) break;
-
-    for (const doc of snapshot.docs) {
-      const messages = await doc.ref.collection("messages").get();
-      // One batch per conversation keeps each commit well under Firestore's
-      // 500-write cap even for the longest transcripts.
-      const batch = db.batch();
-      messages.docs.forEach((message) => batch.delete(message.ref));
-      batch.delete(doc.ref);
-      await batch.commit();
-      removed += 1;
-    }
-
-    console.log(`  …${removed} removed`);
-  }
-
-  console.log(`Done. Removed ${removed} seeded conversations.`);
+  await (await getMongoClientPromise()).close();
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error("\nClearing failed:\n", error);
   process.exit(1);
 });

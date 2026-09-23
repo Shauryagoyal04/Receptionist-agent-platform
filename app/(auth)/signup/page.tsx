@@ -11,6 +11,9 @@ export const metadata: Metadata = {
 export default function SignUpPage() {
   // Read on the server so the form can name the permitted domains before the
   // user types an address that will be rejected.
-  const { signupAllowedDomains } = getServerEnv();
-  return <SignUpForm allowedDomains={signupAllowedDomains} />;
+  const { signupAllowedDomains, googleEnabled } = getServerEnv();
+  return <SignUpForm
+      allowedDomains={signupAllowedDomains}
+      googleEnabled={googleEnabled}
+    />;
 }

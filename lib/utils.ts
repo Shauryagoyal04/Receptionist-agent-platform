@@ -52,56 +52,6 @@ export function median(values: number[]): number {
     : sorted[mid];
 }
 
-/**
- * Tokens used by the conversations search box.
- *
- * Firestore has no substring search, so search is an `array-contains` match
- * against a denormalized token array. We store every name part, the doctor's
- * name parts, and progressively longer digit suffixes of the phone number, so
- * a receptionist can paste the last four, six or ten digits off a caller ID.
- * A query only matches if it equals one of these tokens — typing "meht" will
- * not find "Mehta". Callers must not work around this by loading every
- * document into memory.
- */
-export function buildSearchTokens(input: {
-  patientName: string;
-  phone: string;
-  doctorName: string | null;
-}): string[] {
-  const tokens = new Set<string>();
-
-  const addWords = (value: string) => {
-    const lower = value.toLowerCase().trim();
-    if (lower.length > 0) tokens.add(lower);
-    for (const part of lower.split(/[^a-z0-9]+/)) {
-      if (part.length > 1) tokens.add(part);
-    }
-  };
-
-  addWords(input.patientName);
-  if (input.doctorName) addWords(input.doctorName);
-
-  const digits = input.phone.replace(/\D/g, "");
-  if (digits.length > 0) {
-    tokens.add(digits);
-    for (const length of [4, 5, 6, 10]) {
-      if (digits.length >= length) tokens.add(digits.slice(-length));
-    }
-  }
-
-  return [...tokens];
-}
-
-/** Normalizes what the user typed into the shape `buildSearchTokens` stores. */
-export function normalizeSearchQuery(query: string): string {
-  const trimmed = query.trim().toLowerCase();
-  const digits = trimmed.replace(/\D/g, "");
-  // A query that is mostly digits is a phone lookup; keep only the digits so
-  // "+91 98765 43210" and "9876543210" hit the same token.
-  if (digits.length >= 4 && digits.length / trimmed.length > 0.5) return digits;
-  return trimmed;
-}
-
 export function initialsOf(name: string | null): string {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/).filter(Boolean);

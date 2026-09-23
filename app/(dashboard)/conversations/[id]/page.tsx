@@ -19,7 +19,7 @@ import {
 } from "@/lib/data/conversations";
 import {
   buildQueryString,
-  parseCursorStack,
+  parsePage,
   parseUrlFilters,
   toDataFilters,
 } from "@/lib/conversations/params";
@@ -53,11 +53,10 @@ export default async function ConversationDetailPage({
   // prev/next links walk the same queue they were looking at.
   const state = parseUrlFilters(raw, timeZone);
   const filters = toDataFilters(state, timeZone);
-  const cursorStack = parseCursorStack(raw.cursor);
-  const listQuery = buildQueryString(state, { cursors: cursorStack });
+  const listQuery = buildQueryString(state, { page: parsePage(raw.page) });
 
   const [messages, neighbors] = await Promise.all([
-    getMessages(conversation.id),
+    getMessages(user.clinicId, conversation.id),
     getAdjacentConversations(user.clinicId, conversation, filters),
   ]);
 

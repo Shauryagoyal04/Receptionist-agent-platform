@@ -10,16 +10,20 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx --conditions=react-server scripts/seed.ts",
     "seed:clear": "tsx --conditions=react-server scripts/seed-clear.ts",
-    "verify": "tsx --conditions=react-server scripts/verify.ts"
+    "verify": "tsx --conditions=react-server scripts/verify.ts",
+    "db:setup": "tsx --conditions=react-server scripts/db-setup.ts",
+    "verify:local": "tsx scripts/with-ephemeral-mongo.mts scripts/seed.ts scripts/verify.ts"
   },
   "dependencies": {
+    "@auth/mongodb-adapter": "^3.11.3",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
     "date-fns": "^4.4.0",
-    "firebase": "^12.19.0",
-    "firebase-admin": "^14.4.0",
     "lucide-react": "^1.46.0",
+    "mongodb": "^6.21.0",
     "next": "16.3.5",
+    "next-auth": "^5.0.0-beta.32",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.6.7",
     "react": "^19.3.0",
@@ -40,6 +44,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "mongodb-memory-server": "^11.3.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"

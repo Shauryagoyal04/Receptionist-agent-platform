@@ -358,7 +358,6 @@ export const conversationSchema = z.object({
   summary: z.string(),
   lastMessagePreview: z.string(),
   tags: z.array(z.string()),
-  searchTokens: z.array(z.string()).default([]),
   toolStats: z.record(z.string(), toolStatSchema).default({}),
   reviewedBy: nullableString,
   reviewedAt: nullableIsoDate,

@@ -3,16 +3,16 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
+import { signIn } from "next-auth/react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleButton } from "@/components/auth/google-button";
-import { authErrorMessage, isSilentAuthError } from "@/lib/auth/errors";
-import { signInWithEmail, signInWithGoogle } from "@/lib/auth/client-actions";
+import { authErrorMessage } from "@/lib/auth/errors";
 
-export function SignInForm() {
+export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
@@ -30,32 +30,35 @@ export function SignInForm() {
 
   const pending = busy || isPending;
 
-  function succeed() {
-    startTransition(() => {
-      router.replace(next);
-      router.refresh();
-    });
-  }
-
-  async function run(action: () => Promise<void>) {
-    setError(null);
-    setBusy(true);
-    try {
-      await action();
-      succeed();
-    } catch (caught) {
-      if (!isSilentAuthError(caught)) setError(authErrorMessage(caught));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "");
-    await run(() => signInWithEmail(email, password));
+    setError(null);
+    setBusy(true);
+
+    try {
+      // `redirect: false` so a bad password re-renders this form with a
+      // message instead of bouncing to Auth.js's own error page.
+      const result = await signIn("credentials", {
+        email: String(form.get("email") ?? "").trim(),
+        password: String(form.get("password") ?? ""),
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(authErrorMessage(result.error));
+        return;
+      }
+
+      startTransition(() => {
+        router.replace(next);
+        router.refresh();
+      });
+    } catch (caught) {
+      setError(authErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -109,17 +112,24 @@ export function SignInForm() {
         </Button>
       </form>
 
-      <div className="flex items-center gap-3">
-        <span className="bg-border h-px flex-1" />
-        <span className="text-muted-foreground text-xs">or</span>
-        <span className="bg-border h-px flex-1" />
-      </div>
+      {googleEnabled && (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="bg-border h-px flex-1" />
+            <span className="text-muted-foreground text-xs">or</span>
+            <span className="bg-border h-px flex-1" />
+          </div>
 
-      <GoogleButton
-        label="Continue with Google"
-        disabled={pending}
-        onClick={() => void run(() => signInWithGoogle("signin"))}
-      />
+          <GoogleButton
+            label="Continue with Google"
+            disabled={pending}
+            onClick={() => {
+              setBusy(true);
+              void signIn("google", { redirectTo: next });
+            }}
+          />
+        </>
+      )}
 
       <p className="text-muted-foreground text-sm">
         Don&apos;t have an account?{" "}

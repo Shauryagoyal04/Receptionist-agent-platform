@@ -5,16 +5,31 @@ import { z } from "zod";
 /*
  * Server-side environment, parsed once and loudly.
  *
- * A missing Firebase credential should fail at the first request with a
- * sentence naming the variable, not as an opaque error from deep inside the
- * Admin SDK. Client-side variables are not parsed here: `NEXT_PUBLIC_*` values
- * must be referenced as literal `process.env.X` expressions for Next.js to
- * inline them at build time, so they live in `lib/firebase/client.ts`.
+ * A missing connection string should fail at the first request with a
+ * sentence naming the variable, not as an opaque driver timeout. Client-side
+ * variables are not parsed here: `NEXT_PUBLIC_*` values must be referenced as
+ * literal `process.env.X` expressions for Next.js to inline them at build
+ * time.
  */
 const serverEnvSchema = z.object({
-  FIREBASE_PROJECT_ID: z.string().min(1, "FIREBASE_PROJECT_ID is required"),
-  FIREBASE_CLIENT_EMAIL: z.string().min(1, "FIREBASE_CLIENT_EMAIL is required"),
-  FIREBASE_PRIVATE_KEY: z.string().min(1, "FIREBASE_PRIVATE_KEY is required"),
+  MONGODB_URI: z
+    .string()
+    .min(1, "MONGODB_URI is required")
+    .refine(
+      (value) => value.startsWith("mongodb://") || value.startsWith("mongodb+srv://"),
+      "MONGODB_URI must start with mongodb:// or mongodb+srv://",
+    ),
+  // The same database the agent writes to, so the console can read
+  // appointments, doctors and the clinic record live.
+  MONGODB_DB: z.string().min(1).default("clinic"),
+
+  AUTH_SECRET: z
+    .string()
+    .min(32, "AUTH_SECRET must be at least 32 characters — generate one with `openssl rand -base64 32`"),
+
+  AUTH_GOOGLE_ID: z.string().default(""),
+  AUTH_GOOGLE_SECRET: z.string().default(""),
+
   DEFAULT_CLINIC_ID: z.string().min(1).default("main-clinic"),
   DEFAULT_CLINIC_TIMEZONE: z.string().min(1).default("Asia/Kolkata"),
   SIGNUP_ALLOWED_DOMAINS: z.string().default(""),
@@ -24,6 +39,8 @@ const serverEnvSchema = z.object({
 export type ServerEnv = z.infer<typeof serverEnvSchema> & {
   /** Parsed form of SIGNUP_ALLOWED_DOMAINS. Empty means "allow any domain". */
   signupAllowedDomains: string[];
+  /** Whether Google sign-in is configured; the button is hidden when not. */
+  googleEnabled: boolean;
 };
 
 let cached: ServerEnv | null = null;
@@ -52,15 +69,12 @@ export function getServerEnv(): ServerEnv {
     );
   }
 
-  cached = { ...parsed.data, signupAllowedDomains };
+  cached = {
+    ...parsed.data,
+    signupAllowedDomains,
+    googleEnabled:
+      parsed.data.AUTH_GOOGLE_ID.length > 0 &&
+      parsed.data.AUTH_GOOGLE_SECRET.length > 0,
+  };
   return cached;
-}
-
-/**
- * Vercel and most hosts store multi-line secrets with escaped newlines. The
- * Admin SDK needs the real thing, and surrounding quotes must go too.
- */
-export function getFirebasePrivateKey(): string {
-  const raw = getServerEnv().FIREBASE_PRIVATE_KEY;
-  return raw.replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
 }

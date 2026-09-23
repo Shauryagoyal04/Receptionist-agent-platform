@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { ChevronsUpDown, LogOut } from "lucide-react";
 
 import {
@@ -13,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn, initialsOf } from "@/lib/utils";
-import { signOutEverywhere } from "@/lib/auth/client-actions";
+import { signOutAction } from "@/lib/auth/sign-out-action";
 import type { UserRole } from "@/lib/types";
 
 export function UserMenu({
@@ -31,24 +30,9 @@ export function UserMenu({
   className?: string;
   align?: "start" | "end";
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const name = displayName ?? email ?? "Signed in";
-
-  async function onSignOut() {
-    setBusy(true);
-    try {
-      await signOutEverywhere();
-      startTransition(() => {
-        router.replace("/login");
-        router.refresh();
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <DropdownMenu>
@@ -79,16 +63,16 @@ export function UserMenu({
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          disabled={busy || isPending}
+          disabled={isPending}
           onSelect={(event) => {
             // Keep the menu mounted while the request is in flight so the
             // disabled state is visible rather than the menu vanishing.
             event.preventDefault();
-            void onSignOut();
+            startTransition(() => signOutAction());
           }}
         >
           <LogOut />
-          {busy || isPending ? "Signing out…" : "Sign out"}
+          {isPending ? "Signing out…" : "Sign out"}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,5 +1,5 @@
 /*
- * Populates Firestore with a believable 90 days of clinic traffic.
+ * Populates MongoDB with a believable 90 days of clinic traffic.
  *
  *   npm run seed          — write the demo data
  *   npm run seed:clear    — remove it again
@@ -15,9 +15,11 @@ import { config as loadEnv } from "dotenv";
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ path: ".env", quiet: true });
 
-import { Timestamp, type WriteBatch } from "firebase-admin/firestore";
+import { ObjectId, type Document } from "mongodb";
 
-import { adminDb } from "@/lib/firebase/admin";
+import { COLLECTIONS, getDb, getMongoClientPromise } from "@/lib/mongodb";
+import { ensureConversationIndexes } from "@/lib/data/conversations";
+import { ensureUserIndexes } from "@/lib/data/users";
 import { getServerEnv } from "@/lib/env";
 import { deriveConversationFields, type DerivableMessage } from "@/lib/data/derive";
 import type {
@@ -52,7 +54,7 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 /**
  * `npm run seed -- --dry-run` generates everything and prints the resulting
- * distributions without touching Firestore. Useful for checking that the data
+ * distributions without touching MongoDB. Useful for checking that the data
  * still looks like a clinic after editing the content tables, and for running
  * the generator where no credentials are configured.
  */
@@ -763,33 +765,37 @@ async function main() {
       : `Seeding ${CONVERSATION_COUNT} conversations for clinic "${clinicId}" over the last ${DAYS_BACK} days…`,
   );
 
-  const db = DRY_RUN ? null : adminDb();
+  const db = DRY_RUN ? null : await getDb();
 
   if (db && env) {
-    await db.collection("clinics").doc(clinicId).set(
+    await Promise.all([ensureConversationIndexes(), ensureUserIndexes()]);
+    await db.collection(COLLECTIONS.clinic).updateOne(
+      { clinicId },
       {
-        name: "Sunrise Multi-Speciality Clinic",
-        timezone: env.DEFAULT_CLINIC_TIMEZONE,
-        createdAt: Timestamp.fromDate(
-          new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000),
-        ),
+        $set: {
+          clinicId,
+          clinicName: "Sunrise Multi-Speciality Clinic",
+          timezone: env.DEFAULT_CLINIC_TIMEZONE,
+        },
+        $setOnInsert: {
+          createdAt: new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000),
+        },
       },
-      { merge: true },
+      { upsert: true },
     );
   }
 
-  let batch: WriteBatch | null = db ? db.batch() : null;
-  let pendingWrites = 0;
+  // Buffered and flushed in chunks: one insertMany per 100 conversations is
+  // far fewer round trips than an insert per document, and keeps the payload
+  // well inside MongoDB's 16MB command limit even with long transcripts.
+  let buffer: Document[] = [];
   let written = 0;
 
-  const commitIfNeeded = async (force = false) => {
-    // Firestore caps a batch at 500 writes. Each conversation is 1 + its
-    // messages, so the batch is flushed well before that.
-    if (!db || !batch) return;
-    if (force || pendingWrites >= 400) {
-      await batch.commit();
-      batch = db.batch();
-      pendingWrites = 0;
+  const flush = async (force = false) => {
+    if (!db || buffer.length === 0) return;
+    if (force || buffer.length >= 100) {
+      await db.collection(COLLECTIONS.conversations).insertMany(buffer);
+      buffer = [];
     }
   };
 
@@ -856,9 +862,6 @@ async function main() {
 
     const derived = deriveConversationFields({
       messages,
-      patientName: patient.name,
-      phone: patient.phone,
-      doctorName: doctor?.name ?? null,
       fallbackStartedAt: startedAt.toISOString(),
     });
 
@@ -868,8 +871,7 @@ async function main() {
     // A realistic share of older conversations have been triaged already.
     const ageDays = (now.getTime() - startedAt.getTime()) / 86400000;
     const reviewed = chance(Math.min(0.55, ageDays / 90));
-    const conversationRef = db ? db.collection("conversations").doc() : null;
-    const conversationId = conversationRef?.id ?? `dry-${index}`;
+    const conversationId = new ObjectId();
 
     const intents: IntentId[] = [intent];
     if (chance(0.3)) {
@@ -889,32 +891,27 @@ async function main() {
       doctorName: doctor?.name ?? null,
       appointmentAt:
         appointmentAt && outcome !== "appointment_cancelled"
-          ? Timestamp.fromDate(appointmentAt)
+          ? appointmentAt
           : null,
-      startedAt: Timestamp.fromDate(new Date(derived.startedAt)),
-      endedAt: derived.endedAt
-        ? Timestamp.fromDate(new Date(derived.endedAt))
-        : null,
+      startedAt: new Date(derived.startedAt),
+      endedAt: derived.endedAt ? new Date(derived.endedAt) : null,
       durationSec: derived.durationSec,
       messageCount: derived.messageCount,
       patientMessageCount: derived.patientMessageCount,
       agentMessageCount: derived.agentMessageCount,
       avgAgentLatencyMs: derived.avgAgentLatencyMs,
       escalated,
-      escalatedAt: escalatedAt ? Timestamp.fromDate(new Date(escalatedAt)) : null,
+      escalatedAt: escalatedAt ? new Date(escalatedAt) : null,
       escalationReason,
       sentiment: sentiment as Sentiment,
       language,
       summary: summaryFor(outcome, patient, doctor, appointmentAt, escalationReason),
       lastMessagePreview: derived.lastMessagePreview,
       tags: sample(TAGS, intBetween(0, 3)),
-      searchTokens: derived.searchTokens,
       toolStats: derived.toolStats,
       reviewedBy: reviewed ? "seed-reviewer" : null,
       reviewedAt: reviewed
-        ? Timestamp.fromDate(
-            new Date(startedAt.getTime() + intBetween(1, 72) * 3600000),
-          )
+        ? new Date(startedAt.getTime() + intBetween(1, 72) * 3600000)
         : null,
       staffNote: reviewed && chance(0.25)
         ? pick([
@@ -927,38 +924,37 @@ async function main() {
       seeded: true,
     };
 
-    if (batch && conversationRef) {
-      batch.set(conversationRef, conversationDoc);
-      pendingWrites += 1;
+    // Messages are embedded rather than a separate collection: a transcript
+    // is only ever read with its conversation, is bounded in size, and this
+    // way the detail page is one round trip instead of two.
+    const messageDocs = messages.map((message, messageIndex) => ({
+      role: message.role,
+      type: message.type,
+      content: message.content,
+      timestamp: new Date(message.timestamp),
+      // Voice conversations carry a per-message recording. No audio is
+      // processed here; the console just renders a player when this is set.
+      audioUrl:
+        channel === "voice" && message.type === "text"
+          ? `https://recordings.example.com/${conversationId.toHexString()}/${messageIndex}.mp3`
+          : null,
+      latencyMs: message.latencyMs,
+      confidence:
+        message.role === "agent" && message.type === "text"
+          ? lowConfidence.has(messageIndex)
+            ? Number((0.35 + random() * 0.3).toFixed(2))
+            : Number((0.82 + random() * 0.17).toFixed(2))
+          : null,
+      tool: message.tool,
+    }));
+
+    if (db) {
+      buffer.push({
+        _id: conversationId,
+        ...conversationDoc,
+        messages: messageDocs,
+      });
     }
-
-    messages.forEach((message, messageIndex) => {
-      const messageDoc = {
-        role: message.role,
-        type: message.type,
-        content: message.content,
-        timestamp: Timestamp.fromDate(new Date(message.timestamp)),
-        // Voice conversations carry a per-message recording. No audio is
-        // processed here; the console just renders a player when this is set.
-        audioUrl:
-          channel === "voice" && message.type === "text"
-            ? `https://recordings.example.com/${conversationId}/${messageIndex}.mp3`
-            : null,
-        latencyMs: message.latencyMs,
-        confidence:
-          message.role === "agent" && message.type === "text"
-            ? lowConfidence.has(messageIndex)
-              ? Number((0.35 + random() * 0.3).toFixed(2))
-              : Number((0.82 + random() * 0.17).toFixed(2))
-            : null,
-        tool: message.tool,
-      };
-
-      if (batch && conversationRef) {
-        batch.set(conversationRef.collection("messages").doc(), messageDoc);
-        pendingWrites += 1;
-      }
-    });
 
     // --- Tallies ------------------------------------------------------
     const istStart = new Date(
@@ -987,14 +983,14 @@ async function main() {
     }
 
     written += 1;
-    await commitIfNeeded();
+    await flush();
 
     if (!DRY_RUN && written % 100 === 0) {
       console.log(`  …${written} conversations`);
     }
   }
 
-  await commitIfNeeded(true);
+  await flush(true);
 
   if (DRY_RUN) {
     reportStats(stats, written);
@@ -1003,6 +999,9 @@ async function main() {
 
   console.log(`Done. Wrote ${written} conversations.`);
   console.log("Run `npm run seed:clear` to remove them.");
+
+  // The driver keeps a pooled connection open, which would hang the process.
+  await (await getMongoClientPromise()).close();
 }
 
 function reportStats(stats: Stats, total: number) {
@@ -1051,7 +1050,7 @@ function reportStats(stats: Stats, total: number) {
   }
   printSampleTranscript();
 
-  console.log("\nNothing was written. Drop --dry-run to seed Firestore.");
+  console.log("\nNothing was written. Drop --dry-run to seed MongoDB.");
 }
 
 main().catch((error) => {

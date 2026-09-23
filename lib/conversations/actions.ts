@@ -78,7 +78,7 @@ export async function setReviewedFlag(
     await setReviewed(
       user.clinicId,
       parsed.data.conversationId,
-      user.uid,
+      user.id,
       parsed.data.reviewed,
     );
   } catch (error) {

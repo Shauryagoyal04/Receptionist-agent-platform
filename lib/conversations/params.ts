@@ -24,7 +24,7 @@ import type { ConversationFilters, SortOrder } from "@/lib/data/conversations";
  * is shareable, the back button restores the previous filters, and the page
  * stays a Server Component.
  *
- *   ?q=&status=&outcome=&intent=&channel=&from=&to=&cursor=&sort=&unreviewed=
+ *   ?q=&status=&outcome=&intent=&channel=&from=&to=&page=&sort=&unreviewed=
  *
  * Multi-select facets are comma-separated. Dates are plain `YYYY-MM-DD` on the
  * clinic's calendar, converted to UTC instants at the edges of the day here so
@@ -153,13 +153,13 @@ export function hasActiveUrlFilters(state: UrlFilterState): boolean {
  * Serializes filter state back to a query string.
  *
  * Defaults are omitted so the common case produces a clean `/conversations`
- * URL rather than a wall of empty parameters. `cursor` is never carried over
- * by a filter change — the old cursor points into a differently-filtered
- * result set, and reusing it would silently skip rows.
+ * URL rather than a wall of empty parameters. `page` is never carried over by
+ * a filter change — page 7 of the old result set is meaningless in the new
+ * one, and would usually land the reader on an empty table.
  */
 export function buildQueryString(
   state: UrlFilterState,
-  extra: { cursors?: string[] } = {},
+  extra: { page?: number } = {},
 ): string {
   const params = new URLSearchParams();
 
@@ -172,9 +172,8 @@ export function buildQueryString(
   if (state.to) params.set("to", state.to);
   if (state.unreviewedOnly) params.set("unreviewed", "1");
   if (state.sort !== "newest") params.set("sort", state.sort);
-  if (extra.cursors && extra.cursors.length > 0) {
-    params.set("cursor", extra.cursors.join(","));
-  }
+  // Page 1 is the default, so it never appears in the URL.
+  if (extra.page && extra.page > 1) params.set("page", String(extra.page));
 
   const query = params.toString();
   return query.length > 0 ? `?${query}` : "";
@@ -207,19 +206,14 @@ export function presetRange(
 }
 
 /**
- * The cursors for every page walked so far, oldest first.
+ * The requested page number, 1-based.
  *
- * Firestore cursors only move forward, so "Previous" is implemented by
- * remembering the path taken rather than by querying backwards. The last
- * entry is the cursor for the page currently shown; dropping it yields the
- * previous page, and it lands on exactly the rows that were shown before
- * rather than re-deriving them from a result set that may have shifted.
+ * Anything unparseable or below 1 becomes page 1 rather than an error — a
+ * mangled URL should show the first page, not a stack trace. The upper bound
+ * is applied by the data layer, which is the only place that knows how many
+ * pages there are.
  */
-export function parseCursorStack(raw: string | string[] | undefined): string[] {
-  const value = first(raw);
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => /^[A-Za-z0-9_-]+$/.test(entry));
+export function parsePage(raw: string | string[] | undefined): number {
+  const value = Number.parseInt(first(raw) ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : 1;
 }
