@@ -1,7 +1,7 @@
 /*
  * Timezone helpers.
  *
- * Everything in Firestore is UTC, but a clinic thinks in local time: "how
+ * Everything in the database is UTC, but a clinic thinks in local time: "how
  * many calls did we get on the 14th" and "when is our busiest hour" are both
  * questions about the wall clock in Asia/Kolkata, not about UTC. Getting this
  * wrong shifts every daily bucket by 5.5 hours and moves the evening peak

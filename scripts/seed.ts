@@ -752,7 +752,7 @@ function printSampleTranscript() {
 
 async function main() {
   // A dry run must work without credentials, so the strict env parse (which
-  // requires the Firebase service account) only runs when actually writing.
+  // requires MONGODB_URI) only runs when actually writing.
   const env = DRY_RUN ? null : getServerEnv();
   const clinicId =
     env?.DEFAULT_CLINIC_ID ?? process.env.DEFAULT_CLINIC_ID ?? "main-clinic";

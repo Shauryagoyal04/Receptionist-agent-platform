@@ -36,11 +36,14 @@ export default function RootError({
             The console couldn&apos;t start
           </h1>
           <p className="text-muted-foreground mt-1.5 text-sm">
-            This usually means the server is missing its Firebase credentials.
-            Check that <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">.env.local</code>{" "}
-            exists and that every value in{" "}
-            <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">.env.example</code>{" "}
-            is filled in, then restart the server.
+            This usually means the server cannot reach MongoDB, or is missing
+            a required setting. Check that{" "}
+            <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">.env.local</code>{" "}
+            exists and that{" "}
+            <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">MONGODB_URI</code>{" "}
+            and{" "}
+            <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">AUTH_SECRET</code>{" "}
+            are set, then restart the server.
           </p>
         </div>
 

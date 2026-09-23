@@ -68,15 +68,14 @@ function escapeRegex(value: string): string {
 /**
  * Builds the Mongo filter for a set of console filters.
  *
- * Unlike the Firestore design this replaced, every facet combination is a
- * single indexed query — there is no per-combination index to declare and no
- * in-memory pass, so results and counts are always exact.
+ * Every facet combination is a single indexed query — there is no
+ * per-combination index to declare and no in-memory filtering pass, so
+ * results and counts are always exact.
  *
- * Search is a real case-insensitive substring match across the patient name,
- * doctor name and phone digits: typing "meht" finds "Mehta". For the demo
- * scale this is a straightforward regex; if the collection grows past a few
- * hundred thousand conversations, swap the `$or` below for an Atlas Search
- * index without changing any caller.
+ * Search is a case-insensitive substring match across the patient name,
+ * doctor name and phone digits: typing "meht" finds "Mehta". At this scale a
+ * regex is the right tool; past a few hundred thousand conversations, swap
+ * the `$or` below for an Atlas Search index without changing any caller.
  */
 function buildFilter(
   clinicId: string,

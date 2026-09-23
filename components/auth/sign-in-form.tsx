@@ -15,7 +15,13 @@ import { authErrorMessage } from "@/lib/auth/errors";
 export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  // Google sign-in redirects rather than returning a result, so a failure
+  // arrives as ?error= on this page. Without this the user would be bounced
+  // back to a blank form with no explanation.
+  const redirectedError = searchParams.get("error");
+  const [error, setError] = useState<string | null>(
+    redirectedError ? authErrorMessage(redirectedError) : null,
+  );
   const [busy, setBusy] = useState(false);
   const [isPending, startTransition] = useTransition();
 

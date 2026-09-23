@@ -120,12 +120,57 @@ try {
   );
   const loginPage = await fetch(`${BASE}/login`);
   check("/login renders", loginPage.status === 200);
+
+  const loginWithError = await fetch(`${BASE}/login?error=CredentialsSignin`);
+  const loginErrorHtml = await loginWithError.text();
+  check(
+    "a redirected auth error is shown as a sentence",
+    loginErrorHtml.includes("email and password don&#x27;t match") ||
+      loginErrorHtml.includes("email and password don't match"),
+  );
+  // The code still appears inside Next's RSC routing payload, which is just
+  // the URL echoed back — already visible in the address bar. What matters is
+  // that no raw code reaches the rendered text.
+  const visibleText = loginErrorHtml.replace(/<script[\s\S]*?<\/script>/g, "");
+  check(
+    "the raw Auth.js code is never shown to the user",
+    !visibleText.includes("CredentialsSignin"),
+  );
   check(
     "Google button hidden when unconfigured",
     !(await loginPage.text()).includes("Continue with Google"),
   );
 
   console.log("\n[smoke] signing in");
+
+  // A wrong password must come back as a mapped sentence, not an Auth.js code.
+  const preCsrf = await fetch(`${BASE}/api/auth/csrf`);
+  storeCookies(preCsrf);
+  const { csrfToken: badCsrf } = (await preCsrf.json()) as { csrfToken: string };
+  const badLogin = await fetch(`${BASE}/api/auth/callback/credentials`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      cookie: cookieHeader(),
+    },
+    body: new URLSearchParams({
+      csrfToken: badCsrf,
+      email: EMAIL,
+      password: "wrong-password",
+    }),
+    redirect: "manual",
+  });
+  const badLocation = badLogin.headers.get("location") ?? "";
+  check(
+    "wrong password is rejected",
+    badLogin.status === 302 && badLocation.includes("error"),
+    `${badLogin.status} ${badLocation}`,
+  );
+  check(
+    "rejection maps to a known Auth.js code",
+    badLocation.includes("CredentialsSignin"),
+    badLocation,
+  );
   const csrfResponse = await fetch(`${BASE}/api/auth/csrf`);
   storeCookies(csrfResponse);
   const { csrfToken } = (await csrfResponse.json()) as { csrfToken: string };

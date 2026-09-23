@@ -242,14 +242,15 @@ export const CHANNEL_CHART_COLOR: Record<Channel, string> = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Firestore value coercion                                            */
+/* Date coercion                                                       */
 /* ------------------------------------------------------------------ */
 
 /**
- * Firestore `Timestamp` objects cannot cross the Server/Client Component
- * boundary, so every date is normalized to an ISO 8601 string at the data
- * layer. This accepts whatever Firestore (admin SDK), the seed script or an
- * ingest payload hands us and produces that string.
+ * A `Date` cannot cross the Server/Client Component boundary intact, so every
+ * date is normalized to an ISO 8601 string at the data layer. This accepts
+ * whatever MongoDB, the seed script or an ingest payload hands us — a Date, an
+ * epoch, an ISO string, or an object with `toDate()` — and produces that
+ * string.
  */
 export const isoDate = z
   .custom<unknown>()
@@ -273,7 +274,7 @@ export const isoDate = z
     }
     ctx.addIssue({
       code: "custom",
-      message: "Expected a Firestore Timestamp, Date, epoch or ISO string",
+      message: "Expected a Date, epoch, ISO string or an object with toDate()",
     });
     return z.NEVER;
   });

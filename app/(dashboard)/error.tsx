@@ -35,9 +35,9 @@ export default function DashboardError({
             This page couldn&apos;t load
           </h1>
           <p className="text-muted-foreground mt-1.5 text-sm">
-            The console reached Firestore but the request didn&apos;t come
-            back cleanly. This is usually a missing Firestore index or an
-            expired service account key.
+            The console reached the database but the request didn&apos;t come
+            back cleanly. This is usually a dropped connection, or an IP that
+            is no longer on the Atlas access list.
           </p>
         </div>
 
@@ -58,8 +58,8 @@ export default function DashboardError({
         </div>
 
         <p className="text-muted-foreground text-xs">
-          If this keeps happening, check the server logs — a Firestore index
-          error includes a link that creates the missing index.
+          If this keeps happening, check the server logs, and confirm the
+          indexes exist by running <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">npm run db:setup</code>.
         </p>
       </div>
     </main>

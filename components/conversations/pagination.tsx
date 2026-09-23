@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 /**
  * Numbered pagination with an exact total.
  *
- * MongoDB counts a filtered set cheaply, so unlike the Firestore design this
- * replaced, the reader can be told how many conversations actually match and
- * can jump to a page rather than clicking Next repeatedly.
+ * MongoDB counts a filtered set cheaply, so the reader can be told how many
+ * conversations actually match and can jump to a page rather than clicking
+ * Next repeatedly.
  *
  * Long ranges are elided around the current page so the control stays one
  * line at 375px.
