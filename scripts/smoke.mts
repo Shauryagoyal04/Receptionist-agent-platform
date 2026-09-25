@@ -251,27 +251,31 @@ try {
   const listHtml = await list.text();
   check("/conversations renders", list.status === 200, `${list.status}`);
   check("pagination shows a total", /of\s*<!-- -->?\s*<span[^>]*>400|400<\/span>/.test(listHtml) || listHtml.includes("400"));
-  // Facets are dropdowns now; their options live in a Radix portal that only
-  // mounts on open, so assert the triggers rather than the option labels.
+  // Every facet now lives behind one Filters trigger. Its options are in a
+  // Radix portal that only mounts on open, so assert the trigger and its
+  // accessible name rather than the option labels.
+  check("filters menu rendered", listHtml.includes("Filters"));
   check(
-    "filter dropdowns rendered",
-    listHtml.includes(">Outcome<") &&
-      listHtml.includes(">Status<") &&
-      listHtml.includes(">Intent<"),
+    "filters trigger reports nothing applied",
+    listHtml.includes("Filters, none applied"),
   );
-  check("review dropdown rendered", listHtml.includes(">Review<"));
   check("date range rendered", listHtml.includes("From date"));
   check(
     "channel column hidden for a single channel",
     !listHtml.includes(">Channel<"),
   );
-  check(
-    "channel filter hidden for a single channel",
-    !listHtml.includes(">Channel<"),
-  );
+  // The Channel section is inside the menu, so it cannot be asserted from the
+  // closed markup; the capability check covers it with the flag flipped on.
+  check("search box rendered", listHtml.includes("Search conversations"));
 
   const filtered = await get("/conversations?outcome=escalated&channel=voice");
+  const filteredHtml = await filtered.text();
   check("combined filters render", filtered.status === 200);
+  check(
+    "filters trigger reports the applied count",
+    filteredHtml.includes("Filters, 1 applied"),
+    "channel is not offered on a whatsapp-only deployment, so only outcome counts",
+  );
 
   const page3 = await get("/conversations?page=3");
   check("page 3 renders", page3.status === 200);

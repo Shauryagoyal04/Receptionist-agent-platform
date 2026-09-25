@@ -112,7 +112,12 @@ try {
   const l = await list.text();
   check("conversations renders", list.status === 200, `${list.status}`);
   check("Channel column is back", l.includes(">Channel<"));
-  check("channel filter chips are back", l.includes("Web chat") && l.includes("Voice"));
+  // The channel labels below come from the table column. The filter options
+  // themselves live inside the closed Filters menu (a Radix portal that only
+  // mounts on open), so they cannot be asserted from this markup — checking
+  // for them here would pass for the wrong reason.
+  check("channel values render in the column", l.includes("Web chat") && l.includes("Voice"));
+  check("filters menu still present", l.includes("Filters, none applied"));
   check("Escalated label restored", l.includes("Escalated"));
   check("asked-for-a-human wording gone", !l.includes("Asked for a human"));
 
