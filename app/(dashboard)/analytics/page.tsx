@@ -145,14 +145,14 @@ export default async function AnalyticsPage({
               other five sit beside it. */}
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
             <KpiCard kpi={headline} emphasis periodLabel={periodLabel} />
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(3,minmax(0,1fr))]">
               {rest.map((kpi) => (
                 <KpiCard key={kpi.id} kpi={kpi} periodLabel={periodLabel} />
               ))}
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
             <ChartFrame
               title="Conversation volume"
               description={`Daily totals, with ${handoff.seriesLabel.toLowerCase()} overlaid`}
@@ -244,7 +244,7 @@ export default async function AnalyticsPage({
             )}
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
             <Card className="gap-0 overflow-hidden py-0">
               <CardHeader className="px-4 py-3">
                 <CardTitle className="text-sm font-medium">

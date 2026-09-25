@@ -19,7 +19,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   if (!user) redirect("/login");
 
   return (
-    <div className="min-h-svh">
+    /*
+     * `flex-1`, not `min-h-svh`. The body is already `flex min-h-full
+     * flex-col`, so forcing a second full viewport height here stacks two
+     * full-height boxes and leaves the page scrollable past its content.
+     */
+    <div className="flex-1">
       {/*
         Keyboard users would otherwise tab through the whole rail on every
         page load before reaching the table they came for.

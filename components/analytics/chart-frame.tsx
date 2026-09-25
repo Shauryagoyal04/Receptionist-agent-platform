@@ -11,7 +11,14 @@ import { cn } from "@/lib/utils";
  * loading skeleton can declare the same number and the page does not jump
  * when data arrives.
  */
-export const CHART_HEIGHT = 240;
+/*
+ * Chart height.
+ *
+ * Shared with the loading skeleton so the page does not jump, and kept
+ * deliberately compact: five charts at 240px each pushed the analytics page
+ * well past two screens on a laptop.
+ */
+export const CHART_HEIGHT = 200;
 
 export type ChartTableRow = { label: string; value: string };
 
@@ -44,7 +51,9 @@ export function ChartFrame({
   children: React.ReactNode;
 }) {
   return (
-    <Card className={cn("gap-0 py-0", className)}>
+    // `min-w-0` matters: without it a grid item is min-width:auto and the
+    // Recharts SVG can refuse to shrink, overflowing the page sideways.
+    <Card className={cn("min-w-0 gap-0 py-0", className)}>
       <CardHeader className="px-4 pt-4 pb-0">
         <div>
           <CardTitle className="text-sm font-medium">{title}</CardTitle>

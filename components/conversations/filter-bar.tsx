@@ -1,12 +1,20 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SearchInput } from "@/components/conversations/search-input";
 import { DateRangePicker } from "@/components/conversations/date-range-picker";
+import { FilterDropdown } from "@/components/conversations/filter-dropdown";
 import { useFilterNav } from "@/components/conversations/use-filter-nav";
 import { cn } from "@/lib/utils";
 import {
@@ -28,12 +36,12 @@ import {
 } from "@/lib/types";
 
 /**
- * Filter chips for the conversations list.
+ * Filters for the conversations list.
  *
- * Every group is multi-select and every change is a URL navigation, so the
- * back button walks filter history and any view can be pasted to a colleague.
- * Chips rather than dropdowns because the active filters then stay visible
- * while scanning the table — the whole point is fast triage.
+ * Every facet is a multi-select dropdown and every change is a URL
+ * navigation, so the back button walks filter history and any view can be
+ * pasted to a colleague. Each trigger shows how many values are selected, so
+ * the bar stays one row without hiding that the table is filtered.
  */
 export function FilterBar({
   state,
@@ -44,7 +52,7 @@ export function FilterBar({
 }: {
   state: UrlFilterState;
   timeZone: string;
-  /** Only these are offered as chips, so no filter can match nothing. */
+  /** Only these are offered, so no filter can match nothing. */
   enabledChannels: Channel[];
   showChannelUi: boolean;
   handoffEnabled: boolean;
@@ -56,122 +64,125 @@ export function FilterBar({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Search on the left; the date range and the review filter together on
+          the right, since both narrow "which conversations" rather than
+          "which kind". */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <SearchInput state={state} />
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <DateRangePicker state={state} timeZone={timeZone} />
-
-          <div className="flex items-center gap-2">
-            <Switch
-              id="unreviewed"
-              checked={state.unreviewedOnly}
-              onCheckedChange={(checked) =>
-                apply({ unreviewedOnly: checked === true })
-              }
-            />
-            <Label htmlFor="unreviewed" className="cursor-pointer">
-              Only unreviewed
-            </Label>
-          </div>
-
-          {/* Only offered once something is actually filtered, so it does not
-              sit there as a dead control on first load. */}
-          {active && (
-            <Button variant="ghost" size="sm" onClick={clear}>
-              <X />
-              Clear filters
-            </Button>
-          )}
+          <ReviewFilter
+            unreviewedOnly={state.unreviewedOnly}
+            onChange={(unreviewedOnly) => apply({ unreviewedOnly })}
+          />
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <ChipGroup
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterDropdown
           legend="Outcome"
           values={OUTCOMES}
           selected={state.outcome}
           labelOf={(value) => outcomeLabel[value]}
           dotOf={(value) => TONE_DOT_CLASS[OUTCOME_TONE[value]]}
           onToggle={(value) => toggle("outcome", value)}
+          onClear={() => apply({ outcome: [] })}
         />
-        <ChipGroup
+
+        <FilterDropdown
           legend="Status"
           values={CONVERSATION_STATUSES}
           selected={state.status}
           labelOf={(value) => statusLabel[value]}
           dotOf={(value) => TONE_DOT_CLASS[STATUS_TONE[value]]}
           onToggle={(value) => toggle("status", value)}
+          onClear={() => apply({ status: [] })}
         />
-        <ChipGroup
+
+        <FilterDropdown
           legend="Intent"
           values={INTENT_IDS}
           selected={state.intent}
           labelOf={(value) => INTENT_LABELS[value]}
           onToggle={(value) => toggle("intent", value)}
+          onClear={() => apply({ intent: [] })}
         />
-        {/* One channel means every chip is either "everything" or "nothing". */}
+
+        {/* One channel means every option is either "everything" or "nothing". */}
         {showChannelUi && (
-          <ChipGroup
+          <FilterDropdown
             legend="Channel"
             values={enabledChannels}
             selected={state.channel}
             labelOf={(value) => CHANNEL_LABELS[value]}
             onToggle={(value) => toggle("channel", value)}
+            onClear={() => apply({ channel: [] })}
           />
+        )}
+
+        {/* Only offered once something is actually filtered, so it does not
+            sit there as a dead control on first load. */}
+        {active && (
+          <Button variant="ghost" size="sm" className="h-8" onClick={clear}>
+            <X />
+            Clear filters
+          </Button>
         )}
       </div>
     </div>
   );
 }
 
-function ChipGroup<T extends string>({
-  legend,
-  values,
-  selected,
-  labelOf,
-  dotOf,
-  onToggle,
+/**
+ * Reviewed state.
+ *
+ * A radio rather than a checkbox: "all" and "unreviewed only" are two views of
+ * the queue, and a dropdown that reads "Review: All" states the current one
+ * without needing a separate label beside it.
+ */
+function ReviewFilter({
+  unreviewedOnly,
+  onChange,
 }: {
-  legend: string;
-  values: readonly T[];
-  selected: readonly T[];
-  labelOf: (value: T) => string;
-  dotOf?: (value: T) => string;
-  onToggle: (value: T) => void;
+  unreviewedOnly: boolean;
+  onChange: (unreviewedOnly: boolean) => void;
 }) {
+  const value = unreviewedOnly ? "unreviewed" : "all";
+
   return (
-    <fieldset className="flex flex-wrap items-center gap-1.5">
-      <legend className="sr-only">{legend}</legend>
-      <span className="text-muted-foreground w-16 shrink-0 text-xs">
-        {legend}
-      </span>
-      {values.map((value) => {
-        const isSelected = selected.includes(value);
-        return (
-          <button
-            key={value}
-            type="button"
-            // A toggle button, not a link: `aria-pressed` is what tells a
-            // screen reader this filter is currently on.
-            aria-pressed={isSelected}
-            onClick={() => onToggle(value)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors",
-              isSelected
-                ? "border-foreground/20 bg-foreground text-background"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-          >
-            {isSelected ? (
-              <Check className="size-3" />
-            ) : dotOf ? (
-              <span className={cn("size-1.5 rounded-full", dotOf(value))} />
-            ) : null}
-            {labelOf(value)}
-          </button>
-        );
-      })}
-    </fieldset>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={
+            unreviewedOnly
+              ? "Review filter: only unreviewed"
+              : "Review filter: all conversations"
+          }
+          className={cn("h-8 gap-1.5", unreviewedOnly && "border-foreground/30")}
+        >
+          {unreviewedOnly ? "Unreviewed" : "Review"}
+          <ChevronDown className="text-muted-foreground size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuLabel>Review</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => onChange(next === "unreviewed")}
+        >
+          <DropdownMenuRadioItem value="all">
+            All conversations
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="unreviewed">
+            Only unreviewed
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
