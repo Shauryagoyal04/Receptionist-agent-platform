@@ -521,30 +521,25 @@ export async function ensureConversationIndexes(): Promise<void> {
     /*
      * Ingestion is idempotent on the agent's own id.
      *
-     * A *partial* index, not a sparse one: sparse still indexes a field that
-     * is present and null, so two documents written with `externalId: null`
-     * would collide.
+     * Deliberately created with the SAME name and options the agent uses in
+     * runtime/conversations.py (`uniq_externalId`, a plain unique index).
+     * MongoDB refuses to build two indexes on one key with different options,
+     * so if the console created a partial variant here, the agent's own
+     * `ensure_indexes()` would raise IndexOptionsConflict and its seed script
+     * would crash. Matching exactly means whichever repo runs first, the other
+     * still works.
      *
-     * Note the agent creates its own plain unique index on the same field
-     * (`uniq_externalId`). Mongo will not build two indexes on one key with
-     * different options, so whichever runs first wins. Under the agent's
-     * index a *missing* externalId also counts as null, which is why the seed
-     * script now writes a distinct id for every conversation instead of null.
+     * A plain unique index treats a *missing* field as null, so only one
+     * document may omit externalId — which is why the seed script writes a
+     * distinct id for every conversation and the ingest endpoint always sets
+     * one.
      */
     conversations
-      .createIndex(
-        { externalId: 1 },
-        {
-          unique: true,
-          partialFilterExpression: { externalId: { $type: "string" } },
-          name: "externalId_unique",
-        },
-      )
+      .createIndex({ externalId: 1 }, { unique: true, name: "uniq_externalId" })
       .catch((error: unknown) => {
-        // The agent already created an equivalent index under its own name.
         console.warn(
-          "[db] externalId index already exists with different options; " +
-            "keeping the existing one.",
+          "[db] could not create the externalId index; an equivalent one " +
+            "probably already exists.",
           error,
         );
       }),
