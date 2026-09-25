@@ -25,4 +25,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
     },
   }),
   secret: getServerEnv().AUTH_SECRET,
+  /*
+   * Trust the Host header.
+   *
+   * Auth.js refuses every request with UntrustedHost in production unless it
+   * either knows its own origin (AUTH_URL) or is told to trust the incoming
+   * host. Vercel sets this automatically; a self-hosted `next start` does not,
+   * so without it a production build fails to sign anyone in — while `next
+   * dev` works fine, which makes it easy to ship.
+   *
+   * Safe here because the app sits behind a single known origin. Set AUTH_URL
+   * instead if it is ever served behind a proxy that rewrites Host.
+   */
+  trustHost: true,
 }));
