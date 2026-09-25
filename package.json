@@ -15,7 +15,8 @@
     "verify:local": "tsx scripts/with-ephemeral-mongo.mts scripts/seed.ts scripts/verify.ts",
     "test:aggregate": "tsx --conditions=react-server scripts/test-aggregate.mts",
     "smoke": "tsx scripts/smoke.mts",
-    "check:capabilities": "tsx scripts/check-capabilities.mts"
+    "check:capabilities": "tsx scripts/check-capabilities.mts",
+    "check:agent": "tsx --conditions=react-server scripts/check-agent-compat.mts"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.11.3",

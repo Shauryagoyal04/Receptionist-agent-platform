@@ -917,7 +917,10 @@ async function main() {
 
     const conversationDoc = {
       clinicId,
-      externalId: null,
+      // A distinct id per conversation, not null: the agent creates a plain
+      // unique index on externalId, under which every document missing the
+      // field counts as null and only one could ever be inserted.
+      externalId: `seed_${conversationId.toHexString()}`,
       patient,
       channel,
       status: statusFor(outcome),
