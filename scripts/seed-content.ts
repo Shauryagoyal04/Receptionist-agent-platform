@@ -101,27 +101,29 @@ export const SENTIMENT_BY_OUTCOME: Record<
   ],
 };
 
-/** Which intent plausibly leads to which outcome. */
+/**
+ * Which intent plausibly leads to which outcome.
+ *
+ * Restricted to the intents the agent can actually derive. Its
+ * `_TOOL_INTENT` map in runtime/conversations.py only ever yields
+ * book_appointment, cancel_appointment, doctor_availability, clinic_info and
+ * other — there is no reschedule, fees or report-status tool, so seeding those
+ * would put rows in the console that the real agent can never produce.
+ *
+ * `reschedule_appointment`, `consultation_fees` and `report_status` stay in
+ * the IntentId union because the ingest endpoint accepts them and a later
+ * agent may emit them; they simply are not generated here.
+ */
 export const INTENT_BY_OUTCOME: Record<Outcome, IntentId[]> = {
   appointment_booked: ["book_appointment", "doctor_availability"],
-  appointment_rescheduled: ["reschedule_appointment"],
+  // The agent has no reschedule tool: it cancels then books, and the first
+  // tool call decides the primary intent.
+  appointment_rescheduled: ["cancel_appointment", "doctor_availability"],
   appointment_cancelled: ["cancel_appointment"],
-  info_provided: [
-    "clinic_info",
-    "consultation_fees",
-    "report_status",
-    "doctor_availability",
-  ],
-  escalated: [
-    "book_appointment",
-    "clinic_info",
-    "consultation_fees",
-    "other",
-    "report_status",
-  ],
-  no_resolution: ["other", "report_status", "book_appointment"],
+  info_provided: ["clinic_info", "doctor_availability", "other"],
+  escalated: ["book_appointment", "clinic_info", "other"],
+  no_resolution: ["other", "book_appointment", "doctor_availability"],
 };
-
 /**
  * Hourly weights across a 24-hour day, reflecting real clinic traffic: a
  * morning peak around 10–12, a quieter lunch, an evening peak around 17–19,

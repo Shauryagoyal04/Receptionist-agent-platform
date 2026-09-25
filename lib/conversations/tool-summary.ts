@@ -34,11 +34,17 @@ function possessive(name: string): string {
 
 export function summarizeToolCall(tool: ToolInvocation): string {
   const args = tool.args;
-  const doctor = str(args, "doctor");
+  const doctor = str(args, "doctor_name") ?? str(args, "doctor");
   const date = readableDate(str(args, "date") ?? str(args, "slot") ?? str(args, "newSlot"));
   const phone = str(args, "phone");
 
   switch (tool.name) {
+    case "get_clinic_info": {
+      return "Looked up the clinic's timings, address and contact details";
+    }
+    case "list_doctors": {
+      return "Listed the doctors currently taking appointments";
+    }
     case "check_availability": {
       if (doctor && date) return `Checked ${possessive(doctor)} availability for ${date}`;
       if (doctor) return `Checked ${possessive(doctor)} availability`;
@@ -49,27 +55,21 @@ export function summarizeToolCall(tool: ToolInvocation): string {
       if (doctor) return `Booked an appointment with ${doctor}`;
       return "Booked an appointment";
     }
-    case "reschedule_appointment": {
-      if (doctor && date) return `Moved the ${doctor} appointment to ${date}`;
-      return date ? `Moved the appointment to ${date}` : "Rescheduled the appointment";
+    case "list_my_appointments": {
+      return phone
+        ? `Listed upcoming appointments for ${phone}`
+        : "Listed the patient's upcoming appointments";
     }
     case "cancel_appointment": {
       return doctor ? `Cancelled the ${doctor} appointment` : "Cancelled the appointment";
     }
-    case "lookup_patient": {
-      return phone ? `Looked up the patient record for ${phone}` : "Looked up the patient record";
-    }
-    case "send_confirmation": {
-      const channel = str(args, "channel");
-      const via = channel === "whatsapp" ? "WhatsApp" : channel === "sms" ? "SMS" : null;
-      return via ? `Sent a confirmation by ${via}` : "Sent a confirmation";
-    }
-    case "fetch_report_status": {
-      return "Checked whether the lab report was ready";
-    }
-    case "quote_fees": {
-      const type = str(args, "type");
-      return type ? `Looked up ${type} consultation fees` : "Looked up consultation fees";
+    case "escalate_to_human": {
+      const reason = str(args, "reason");
+      // The agent tells the patient a person will follow up; nothing notifies
+      // one. Say what actually happened rather than repeating the promise.
+      return reason
+        ? `Patient asked for a human — ${reason}`
+        : "Patient asked for a human";
     }
     default: {
       // An unrecognized tool still gets a readable line rather than a blank.

@@ -75,15 +75,21 @@ export const MESSAGE_TYPES = [
 export const messageTypeSchema = z.enum(MESSAGE_TYPES);
 export type MessageType = z.infer<typeof messageTypeSchema>;
 
+/**
+ * The tools the agent actually exposes, matching
+ * `src/clinic_agent/tools/booking_tools.py` exactly.
+ *
+ * `toolLabel()` falls back to prettifying an unknown name, so a tool added on
+ * the agent side still renders sensibly before this list catches up.
+ */
 export const TOOL_NAMES = [
+  "get_clinic_info",
+  "list_doctors",
   "check_availability",
   "book_appointment",
+  "list_my_appointments",
   "cancel_appointment",
-  "reschedule_appointment",
-  "lookup_patient",
-  "send_confirmation",
-  "fetch_report_status",
-  "quote_fees",
+  "escalate_to_human",
 ] as const;
 export const toolNameSchema = z.enum(TOOL_NAMES);
 export type ToolName = z.infer<typeof toolNameSchema>;
@@ -141,14 +147,13 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
 };
 
 export const TOOL_LABELS: Record<ToolName, string> = {
+  get_clinic_info: "Clinic info",
+  list_doctors: "List doctors",
   check_availability: "Check availability",
   book_appointment: "Book appointment",
+  list_my_appointments: "List appointments",
   cancel_appointment: "Cancel appointment",
-  reschedule_appointment: "Reschedule appointment",
-  lookup_patient: "Look up patient",
-  send_confirmation: "Send confirmation",
-  fetch_report_status: "Fetch report status",
-  quote_fees: "Quote fees",
+  escalate_to_human: "Asked for a human",
 };
 
 /* ------------------------------------------------------------------ */

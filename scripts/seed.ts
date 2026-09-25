@@ -310,15 +310,11 @@ function systemEvent(draft: Draft, content: string) {
   });
 }
 
-function handoff(draft: Draft, reason: string) {
-  draft.messages.push({
-    role: "system",
-    type: "handoff",
-    content: `Handed off to front desk — ${reason.toLowerCase()}`,
-    timestamp: advance(draft, intBetween(2, 8)),
-    latencyMs: null,
-    tool: null,
-  });
+
+/** "HH:mm" on the clinic's clock — the slot format the agent's tools use. */
+function formatSlotTime(date: Date): string {
+  const ist = new Date(date.getTime() + IST_OFFSET_MS);
+  return `${String(ist.getUTCHours()).padStart(2, "0")}:${String(ist.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 function formatSlot(date: Date): string {
@@ -390,14 +386,13 @@ function buildTranscript(input: BuildInput): {
   if (patient.isReturning) {
     toolCall(
       draft,
-      "lookup_patient",
+      "list_my_appointments",
       { phone: patient.phone },
       {
         ok: true,
         result: {
-          found: true,
-          patientId: `P-${intBetween(10000, 99999)}`,
-          lastVisit: `${intBetween(1, 11)} months ago`,
+          appointments: [],
+          patient: { name: patient.name },
         },
       },
     );
@@ -423,7 +418,7 @@ function buildTranscript(input: BuildInput): {
         toolCall(
           draft,
           "check_availability",
-          { doctor: doctor.name, from: appointmentAt.toISOString().slice(0, 10) },
+          { doctor_name: doctor.name, date: appointmentAt.toISOString().slice(0, 10) },
           {
             ok: true,
             result: {
@@ -436,11 +431,25 @@ function buildTranscript(input: BuildInput): {
           `No problem. ${doctor.name} has ${formatSlot(appointmentAt)} free. Does that work?`,
         );
         patientSays(draft, "Yes, that's better. Thank you.");
+        // No reschedule tool exists: the agent cancels, then books, and
+        // derive_outcome() reads that pair back as "rescheduled".
         toolCall(
           draft,
-          "reschedule_appointment",
-          { doctor: doctor.name, newSlot: appointmentAt.toISOString() },
-          { ok: true, result: { status: "rescheduled", reference: `APT-${intBetween(10000, 99999)}` } },
+          "cancel_appointment",
+          { appointment_id: `apt_${intBetween(100000, 999999)}` },
+          { ok: true, result: { success: true } },
+        );
+        toolCall(
+          draft,
+          "book_appointment",
+          {
+            doctor_name: doctor.name,
+            date: appointmentAt.toISOString().slice(0, 10),
+            slot: formatSlotTime(appointmentAt),
+            patient_name: patient.name,
+            phone: patient.phone,
+          },
+          { ok: true, result: { success: true, appointmentId: `apt_${intBetween(100000, 999999)}` } },
         );
         agentSays(draft, "Done — I've moved it and sent you a confirmation SMS.");
       }
@@ -452,8 +461,8 @@ function buildTranscript(input: BuildInput): {
         toolCall(
           draft,
           "cancel_appointment",
-          { doctor: doctor.name, phone: patient.phone },
-          { ok: true, result: { status: "cancelled", refundApplicable: chance(0.3) } },
+          { appointment_id: `apt_${intBetween(100000, 999999)}` },
+          { ok: true, result: { success: true } },
         );
         agentSays(
           draft,
@@ -480,9 +489,15 @@ function buildTranscript(input: BuildInput): {
       patientSays(draft, "How much is a consultation?");
       toolCall(
         draft,
-        "quote_fees",
-        { type: doctor ? "specialist" : "general" },
-        { ok: true, result: { consultation: doctor ? 1200 : 800, currency: "INR" } },
+        "get_clinic_info",
+        {},
+        {
+          ok: true,
+          result: {
+            clinicName: "Sunrise Multi-Speciality Clinic",
+            timings: "Mon-Sat, 9:00 AM - 8:00 PM",
+          },
+        },
       );
       agentSays(draft, pick(FEE_ANSWERS));
       break;
@@ -492,11 +507,11 @@ function buildTranscript(input: BuildInput): {
       const ready = chance(0.6);
       toolCall(
         draft,
-        "fetch_report_status",
+        "list_my_appointments",
         { phone: patient.phone },
         ready
-          ? { ok: true, result: { status: "ready", collectedOn: "yesterday", channel: "email" } }
-          : { ok: false, error: "Lab system timed out after 5000ms" },
+          ? { ok: true, result: { appointments: [{ date: "yesterday", status: "Completed" }] } }
+          : { ok: false, error: "Database timed out after 5000ms" },
       );
       agentSays(
         draft,
@@ -535,19 +550,25 @@ function buildTranscript(input: BuildInput): {
         "Please put me through to the front desk.",
       ]),
     );
+    // The agent records this as an escalate_to_human tool call; it has no
+    // concept of a "handoff" message, and nobody is actually notified.
+    toolCall(
+      draft,
+      "escalate_to_human",
+      { reason: input.escalationReason },
+      { ok: true, result: { escalated: true } },
+    );
     agentSays(
       draft,
-      "I understand — let me connect you to someone at the front desk right away.",
+      "I've let our clinic team know — someone will follow up with you here shortly.",
     );
-    handoff(draft, input.escalationReason);
   } else if (input.outcome === "no_resolution") {
     // Abandoned mid-flow: the patient simply stops replying.
     if (chance(0.5)) {
       agentSays(draft, "Are you still there? I can hold for a moment.");
-      systemEvent(
-        draft,
-        input.channel === "voice" ? "Caller hung up" : "Session timed out after 120s of inactivity",
-      );
+      // Voice calls end with an audible event; on WhatsApp the patient simply
+      // stops replying and the idle sweeper closes the conversation later.
+      if (input.channel === "voice") systemEvent(draft, "Caller hung up");
     }
   } else if (!hinglish) {
     patientSays(draft, pick(["Thank you!", "Great, thanks.", "Perfect, thanks a lot."]));
@@ -587,7 +608,7 @@ function buildBookingBody(draft: Draft, input: BuildInput, firstName: string) {
     toolCall(
       draft,
       "check_availability",
-      { doctor: doctor.name, date: appointmentAt.toISOString().slice(0, 10) },
+      { doctor_name: doctor.name, date: appointmentAt.toISOString().slice(0, 10) },
       { ok: false, error: "Scheduling service returned 503 (upstream unavailable)" },
     );
     agentSays(draft, "One moment, let me try that again.");
@@ -597,8 +618,7 @@ function buildBookingBody(draft: Draft, input: BuildInput, firstName: string) {
     draft,
     "check_availability",
     {
-      doctor: doctor.name,
-      speciality: doctor.speciality,
+      doctor_name: doctor.name,
       date: appointmentAt.toISOString().slice(0, 10),
     },
     {
@@ -648,36 +668,24 @@ function buildBookingBody(draft: Draft, input: BuildInput, firstName: string) {
     draft,
     "book_appointment",
     {
-      doctor: doctor.name,
-      slot: appointmentAt.toISOString(),
-      patient: input.patient.name,
+      patient_name: input.patient.name,
+      doctor_name: doctor.name,
+      date: appointmentAt.toISOString().slice(0, 10),
+      slot: formatSlotTime(appointmentAt),
       phone: input.patient.phone,
     },
     {
       ok: true,
       result: {
-        reference: `APT-${intBetween(10000, 99999)}`,
-        slot: appointmentAt.toISOString(),
-        status: "confirmed",
+        success: true,
+        appointmentId: `apt_${intBetween(100000, 999999)}`,
       },
     },
   );
 
-  const confirmationFails = chance(0.08);
-  toolCall(
-    draft,
-    "send_confirmation",
-    { channel: input.channel === "whatsapp" ? "whatsapp" : "sms", phone: input.patient.phone },
-    confirmationFails
-      ? { ok: false, error: "SMS gateway rejected the number (DND registry)" }
-      : { ok: true, result: { delivered: true } },
-  );
-
   agentSays(
     draft,
-    confirmationFails
-      ? `You're booked for ${formatSlot(appointmentAt)}, ${firstName}. I couldn't send the SMS — your number seems to be on the DND registry — so please note the time down.`
-      : `Booked, ${firstName}. ${formatSlot(appointmentAt)} with ${doctor.name}. I've sent you a confirmation.`,
+    `Booked, ${firstName}. ${formatSlot(appointmentAt)} with ${doctor.name}. See you then!`,
   );
 }
 
