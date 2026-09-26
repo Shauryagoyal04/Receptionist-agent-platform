@@ -48,8 +48,30 @@ import {
   WEEKDAY_WEIGHTS,
 } from "./seed-content";
 
-const CONVERSATION_COUNT = 400;
-const DAYS_BACK = 90;
+/** Reads `--flag=value` from argv, falling back to a default. */
+function numericFlag(name: string, fallback: number): number {
+  const match = process.argv.find((arg) => arg.startsWith(`--${name}=`));
+  if (!match) return fallback;
+  const value = Number.parseInt(match.slice(name.length + 3), 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * How many conversations, and how far back they spread.
+ *
+ *   npm run seed -- --count=10 --days=4 --skip-today
+ *
+ * `--skip-today` starts the window at yesterday, which is what you want when
+ * demonstrating "recent activity" without today's partial, still-open day
+ * muddying the daily charts.
+ */
+const CONVERSATION_COUNT = numericFlag("count", 400);
+const DAYS_BACK = numericFlag("days", 90);
+const SKIP_TODAY = process.argv.includes("--skip-today");
+
+/** Oldest and newest day offsets, inclusive. 0 is today. */
+const OLDEST_DAYS_AGO = SKIP_TODAY ? DAYS_BACK : DAYS_BACK - 1;
+const NEWEST_DAYS_AGO = SKIP_TODAY ? 1 : 0;
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 /** Relative weights when every channel is available. */
@@ -162,7 +184,7 @@ function sample<T>(items: readonly T[], count: number): T[] {
  */
 function pickStartedAt(now: Date): Date {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const daysAgo = intBetween(0, DAYS_BACK - 1);
+    const daysAgo = intBetween(NEWEST_DAYS_AGO, OLDEST_DAYS_AGO);
     const dayUtc = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
 
     // Calendar date as it reads in IST.
@@ -190,7 +212,15 @@ function pickStartedAt(now: Date): Date {
     if (startedUtcMs <= now.getTime()) return new Date(startedUtcMs);
   }
 
-  return new Date(now.getTime() - intBetween(1, 60) * 60 * 1000);
+  // Every weighted attempt was rejected. Fall back to a random time inside
+  // the requested window rather than "an hour ago", which would land on today
+  // and defeat --skip-today.
+  const daysAgo = intBetween(NEWEST_DAYS_AGO, OLDEST_DAYS_AGO);
+  return new Date(
+    now.getTime() -
+      daysAgo * 24 * 60 * 60 * 1000 -
+      intBetween(0, 12) * 60 * 60 * 1000,
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -796,8 +826,11 @@ async function main() {
 
   console.log(
     DRY_RUN
-      ? `Dry run: generating ${CONVERSATION_COUNT} conversations (nothing will be written)…`
-      : `Seeding ${CONVERSATION_COUNT} conversations for clinic "${clinicId}" over the last ${DAYS_BACK} days…`,
+      ? `Dry run: generating ${CONVERSATION_COUNT} conversations across days ` +
+        `${NEWEST_DAYS_AGO}–${OLDEST_DAYS_AGO} ago (nothing will be written)…`
+      : `Seeding ${CONVERSATION_COUNT} conversations for clinic "${clinicId}" ` +
+        `across days ${NEWEST_DAYS_AGO}–${OLDEST_DAYS_AGO} ago` +
+        `${SKIP_TODAY ? " (excluding today)" : ""}…`,
   );
 
   // Only generate channels this deployment can actually produce.
@@ -1032,7 +1065,8 @@ async function main() {
     written += 1;
     await flush();
 
-    if (!DRY_RUN && written % 100 === 0) {
+    const step = CONVERSATION_COUNT >= 100 ? 100 : 5;
+    if (!DRY_RUN && written % step === 0) {
       console.log(`  …${written} conversations`);
     }
   }

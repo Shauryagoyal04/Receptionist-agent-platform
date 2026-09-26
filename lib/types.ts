@@ -425,10 +425,20 @@ export function isIntentId(value: string): value is IntentId {
   return (INTENT_IDS as readonly string[]).includes(value);
 }
 
+/**
+ * Display name for a tool.
+ *
+ * Falls back to title-casing an unknown name rather than failing, because the
+ * agent gains tools faster than this list does — `find_next_available` was in
+ * production before it was in the agent repo. "Find next available" reads as
+ * deliberate; "find next available" reads like a bug.
+ */
 export function toolLabel(name: string): string {
-  return name in TOOL_LABELS
-    ? TOOL_LABELS[name as ToolName]
-    : name.replace(/_/g, " ");
+  if (name in TOOL_LABELS) return TOOL_LABELS[name as ToolName];
+  const words = name.replace(/_/g, " ").trim();
+  return words.length > 0
+    ? words.charAt(0).toUpperCase() + words.slice(1)
+    : name;
 }
 
 /* ------------------------------------------------------------------ */
