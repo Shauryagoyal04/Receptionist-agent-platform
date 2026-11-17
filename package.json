@@ -16,7 +16,8 @@
     "test:aggregate": "tsx --conditions=react-server scripts/test-aggregate.mts",
     "smoke": "tsx scripts/smoke.mts",
     "check:capabilities": "tsx scripts/check-capabilities.mts",
-    "check:agent": "tsx --conditions=react-server scripts/check-agent-compat.mts"
+    "check:agent": "tsx --conditions=react-server scripts/check-agent-compat.mts",
+    "smoke:roles": "tsx --conditions=react-server scripts/smoke-roles.mts"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.11.3",

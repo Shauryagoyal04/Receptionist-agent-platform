@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn, initialsOf } from "@/lib/utils";
 import { signOutAction } from "@/lib/auth/sign-out-action";
-import type { UserRole } from "@/lib/types";
+import { USER_ROLE_LABELS, type UserRole } from "@/lib/types";
 
 export function UserMenu({
   displayName,
@@ -45,8 +45,8 @@ export function UserMenu({
         <Avatar name={name} photoURL={photoURL} />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">{name}</span>
-          <span className="text-muted-foreground block truncate text-xs capitalize">
-            {role}
+          <span className="text-muted-foreground block truncate text-xs">
+            {USER_ROLE_LABELS[role]}
           </span>
         </span>
         <ChevronsUpDown className="text-muted-foreground size-3.5 shrink-0" />

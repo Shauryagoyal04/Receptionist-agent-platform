@@ -38,8 +38,8 @@ function toRecord(doc: Document): AppUserRecord {
     email: typeof doc.email === "string" ? doc.email : null,
     displayName: typeof doc.name === "string" ? doc.name : null,
     photoURL: typeof doc.image === "string" ? doc.image : null,
-    // An unrecognized role must never widen access, so fall back to staff.
-    role: role.success ? role.data : "staff",
+    // An unrecognized role must never widen access, so it means no access.
+    role: role.success ? role.data : "pending",
     clinicId:
       typeof doc.clinicId === "string"
         ? doc.clinicId
@@ -71,7 +71,9 @@ export async function markSignedIn(id: string): Promise<void> {
 
 /**
  * The first account created in the database becomes `admin`; everyone after is
- * `staff`.
+ * `pending` and sees nothing until an admin approves them on the Team page.
+ * Sign-up is open to any email, so this approval is what keeps patient data
+ * away from strangers.
  *
  * `countDocuments` with a limit of 1 is cheap, but two simultaneous first
  * sign-ups could still both read zero. The unique index on `email` means only
@@ -80,7 +82,7 @@ export async function markSignedIn(id: string): Promise<void> {
  */
 async function nextRole(collection: Collection<Document>): Promise<UserRole> {
   const existing = await collection.countDocuments({}, { limit: 1 });
-  return existing === 0 ? "admin" : "staff";
+  return existing === 0 ? "admin" : "pending";
 }
 
 export async function createPasswordUser(input: {
@@ -169,6 +171,74 @@ export async function provisionOAuthUser(input: {
   }
 
   await collection.updateOne({ email }, { $set: patch });
+}
+
+/* ------------------------------------------------------------------ */
+/* Team management (admin only — callers check the role)              */
+/* ------------------------------------------------------------------ */
+
+/** Accounts created before clinicId existed belong to the default clinic. */
+function clinicScope(clinicId: string): Document {
+  return clinicId === getServerEnv().DEFAULT_CLINIC_ID
+    ? { $or: [{ clinicId }, { clinicId: { $exists: false } }] }
+    : { clinicId };
+}
+
+export type TeamMember = {
+  id: string;
+  email: string | null;
+  displayName: string | null;
+  role: UserRole;
+  createdAt: string | null;
+  lastLoginAt: string | null;
+};
+
+function isoOrNull(value: unknown): string | null {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" && !Number.isNaN(Date.parse(value))) {
+    return new Date(value).toISOString();
+  }
+  return null;
+}
+
+/** Every account in the clinic, people waiting for approval first. */
+export async function listTeam(clinicId: string): Promise<TeamMember[]> {
+  const docs = await (await users())
+    .find(clinicScope(clinicId), { projection: { passwordHash: 0 } })
+    .sort({ createdAt: -1 })
+    .toArray();
+  const order: Record<UserRole, number> = { pending: 0, admin: 1, staff: 2 };
+  return docs
+    .map((doc) => {
+      const record = toRecord(doc);
+      return {
+        id: record.id,
+        email: record.email,
+        displayName: record.displayName,
+        role: record.role,
+        createdAt: isoOrNull(doc.createdAt),
+        lastLoginAt: isoOrNull(doc.lastLoginAt),
+      };
+    })
+    .sort((a, b) => order[a.role] - order[b.role]);
+}
+
+export async function countPendingUsers(clinicId: string): Promise<number> {
+  return (await users()).countDocuments({ ...clinicScope(clinicId), role: "pending" });
+}
+
+/** Sets an account's role. Returns false when no such account is in the clinic. */
+export async function setUserRole(
+  clinicId: string,
+  id: string,
+  role: UserRole,
+): Promise<boolean> {
+  if (!ObjectId.isValid(id)) return false;
+  const result = await (await users()).updateOne(
+    { _id: new ObjectId(id), ...clinicScope(clinicId) },
+    { $set: { role, roleUpdatedAt: new Date() } },
+  );
+  return result.matchedCount > 0;
 }
 
 /** Indexes the console relies on. Created by `npm run db:setup`. */

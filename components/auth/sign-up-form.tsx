@@ -85,7 +85,7 @@ export function SignUpForm({
             ? `Open to staff with an ${allowedDomains
                 .map((domain) => `@${domain}`)
                 .join(" or ")} address.`
-            : "Ask an administrator before creating an account."}
+            : "An admin at the clinic approves new accounts before they can see anything."}
         </p>
       </div>
 

@@ -6,6 +6,7 @@ import {
   MessagesSquare,
   Settings2,
   Stethoscope,
+  UserCog,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -19,6 +20,8 @@ import {
  * current route starts with it. Matching on segments rather than pathname
  * prefixes keeps "/data/lab_test" from lighting up "/data/lab_tests".
  */
+export type NavBadge = "openEscalations" | "pendingUsers";
+
 export type NavItem = {
   href: string;
   segments: readonly string[];
@@ -27,8 +30,8 @@ export type NavItem = {
   description: string;
   /** Hidden from staff, who only get Analytics, Conversations and Escalations. */
   adminOnly?: boolean;
-  /** Shows the count of open escalations next to the label. */
-  showsOpenEscalations?: boolean;
+  /** A live count next to the label (open escalations, accounts to approve). */
+  badge?: NavBadge;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -52,7 +55,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "Escalations",
     icon: Headphones,
     description: "Patients who asked for a person",
-    showsOpenEscalations: true,
+    badge: "openEscalations",
   },
   {
     href: "/clinic",
@@ -79,6 +82,16 @@ export const NAV_ITEMS: readonly NavItem[] = [
     adminOnly: true,
   },
 ];
+
+/** Admin-only: accounts and their roles. */
+export const TEAM_NAV_ITEM: NavItem = {
+  href: "/team",
+  segments: ["team"],
+  label: "Team",
+  icon: UserCog,
+  description: "Who can sign in, and what they can see",
+  badge: "pendingUsers",
+};
 
 /** Admin-only: page and field definitions. */
 export const SETTINGS_NAV_ITEM: NavItem = {

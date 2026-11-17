@@ -117,9 +117,25 @@ export const DELIVERY_STATUSES = ["pending", "sent", "failed"] as const;
 export const deliveryStatusSchema = z.enum(DELIVERY_STATUSES);
 export type DeliveryStatus = z.infer<typeof deliveryStatusSchema>;
 
-export const USER_ROLES = ["admin", "staff"] as const;
+/**
+ * `pending`: signed up, not yet approved. Sees nothing until an admin makes
+ * them staff or admin on the Team page.
+ */
+export const USER_ROLES = ["admin", "staff", "pending"] as const;
 export const userRoleSchema = z.enum(USER_ROLES);
 export type UserRole = z.infer<typeof userRoleSchema>;
+
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  staff: "Staff",
+  pending: "Waiting for approval",
+};
+
+export const USER_ROLE_DESCRIPTIONS: Record<UserRole, string> = {
+  admin: "Everything, including clinic data, settings and the team",
+  staff: "Analytics, Conversations and Escalations",
+  pending: "No access",
+};
 
 /* ------------------------------------------------------------------ */
 /* Labels                                                              */

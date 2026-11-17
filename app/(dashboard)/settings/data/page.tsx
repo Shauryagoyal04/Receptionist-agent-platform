@@ -4,10 +4,10 @@ import { ChevronRight, Database } from "lucide-react";
 
 import { PageHeader, PageShell } from "@/components/page-header";
 import { CreatePageForm } from "@/components/clinic-data/settings/create-page-form";
-import { AdminOnly, EmptyState } from "@/components/clinic-data/states";
+import { EmptyState } from "@/components/clinic-data/states";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { SYSTEM_PAGES, activeFields, type EntityDefinition } from "@/lib/clinic-data/model";
 import { listDefinitions } from "@/lib/data/definitions";
 
@@ -51,9 +51,7 @@ function PageRow({ def }: { def: EntityDefinition }) {
 }
 
 export default async function DataSettingsPage() {
-  const user = await getCurrentUser();
-  if (!user) return null;
-  if (user.role !== "admin") return <AdminOnly />;
+  const user = await requireAdmin();
 
   const { system, custom } = await listDefinitions(user.clinicId, { includeArchived: true });
   const live = custom.filter((d) => !d.archived);

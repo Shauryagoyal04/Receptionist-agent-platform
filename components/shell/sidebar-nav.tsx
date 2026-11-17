@@ -8,7 +8,9 @@ import {
   CUSTOM_PAGE_ICON,
   NAV_ITEMS,
   SETTINGS_NAV_ITEM,
+  TEAM_NAV_ITEM,
   type CustomNavPage,
+  type NavBadge,
   type NavItem,
 } from "@/components/shell/nav-items";
 
@@ -23,7 +25,17 @@ type NavProps = {
   isAdmin: boolean;
   /** Open escalations, shown as a count next to "Escalations". */
   openEscalations: number;
+  /** Accounts waiting for approval, shown next to "Team" (admins only). */
+  pendingUsers: number;
 };
+
+function badgeCount(item: NavItem, props: NavProps): number {
+  const counts: Record<NavBadge, number> = {
+    openEscalations: props.openEscalations,
+    pendingUsers: props.pendingUsers,
+  };
+  return item.badge ? counts[item.badge] : 0;
+}
 
 function useNav({ customPages, isAdmin }: NavProps) {
   const current = useSelectedLayoutSegments().filter(
@@ -42,7 +54,7 @@ function useNav({ customPages, isAdmin }: NavProps) {
   return {
     main: NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly),
     custom,
-    settings: isAdmin ? [SETTINGS_NAV_ITEM] : [],
+    settings: isAdmin ? [TEAM_NAV_ITEM, SETTINGS_NAV_ITEM] : [],
     isActive,
   };
 }
@@ -52,7 +64,7 @@ function CountBadge({ count }: { count: number }) {
   return (
     <span
       className="bg-status-escalated text-background tabular ml-auto rounded-full px-1.5 text-[11px] leading-5 font-medium"
-      aria-label={`${count} open`}
+      aria-label={`${count} waiting`}
     >
       {count > 99 ? "99+" : count}
     </span>
@@ -82,7 +94,7 @@ function RailLink({
     >
       <Icon className="size-4 shrink-0" />
       <span className="truncate">{item.label}</span>
-      {item.showsOpenEscalations && <CountBadge count={count} />}
+      <CountBadge count={count} />
     </Link>
   );
 }
@@ -97,7 +109,7 @@ export function SidebarNav(props: NavProps) {
           key={item.href}
           item={item}
           active={isActive(item)}
-          count={props.openEscalations}
+          count={badgeCount(item, props)}
         />
       ))}
       {custom.length > 0 && (
@@ -113,7 +125,12 @@ export function SidebarNav(props: NavProps) {
       {settings.length > 0 && (
         <div className="mt-4">
           {settings.map((item) => (
-            <RailLink key={item.href} item={item} active={isActive(item)} count={0} />
+            <RailLink
+              key={item.href}
+              item={item}
+              active={isActive(item)}
+              count={badgeCount(item, props)}
+            />
           ))}
         </div>
       )}
@@ -147,9 +164,7 @@ export function MobileNav(props: NavProps) {
           >
             <Icon className="size-4 shrink-0" />
             {item.label}
-            {item.showsOpenEscalations && (
-              <CountBadge count={props.openEscalations} />
-            )}
+            <CountBadge count={badgeCount(item, props)} />
           </Link>
         );
       })}

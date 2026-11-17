@@ -63,7 +63,7 @@ cp .env.example .env.local
 - **`MONGODB_URI`** — the same cluster the agent uses. On Atlas: *Database → Connect → Drivers*, and allow your IP.
 - **`AUTH_SECRET`** — `openssl rand -base64 32`.
 - **`AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`** — optional. Leave both blank and the Google button is hidden rather than shown and broken. When you do set them, add `https://your-domain/api/auth/callback/google` (and the `localhost:3000` equivalent) as an authorized redirect URI in the Google Cloud console.
-- **`SIGNUP_ALLOWED_DOMAINS`** — comma-separated email domains permitted to create accounts. **If you leave it empty, anyone can sign up**; the app logs a warning at boot when that happens.
+- **`SIGNUP_ALLOWED_DOMAINS`** — comma-separated email domains permitted to create accounts. If you leave it empty, anyone can sign up, but every new account is `pending` and sees nothing until an admin approves it on the Team page.
 - **`INGEST_API_KEY`** — `openssl rand -hex 32`.
 
 ### 3. Create indexes
@@ -90,7 +90,13 @@ Writes ~400 conversations across the last 90 days. Volume follows real clinic ho
 npm run dev
 ```
 
-Sign up at `/signup`. The first account created in the database becomes `admin`; every later account is `staff`.
+Sign up at `/signup`. The first account created in the database becomes `admin`. Every later account is `pending`: it sees a "waiting for approval" screen until an admin gives it a role on **Team** (`/team`):
+
+- **Admin**: everything, including clinic data, settings and the team.
+- **Staff**: Analytics, Conversations and Escalations.
+- **Waiting for approval** (`pending`): nothing.
+
+Roles are read from the database on every request, so a change applies on the person's next click. An admin can't change their own role (another admin can), so a clinic can't lock itself out.
 
 ## Scripts
 

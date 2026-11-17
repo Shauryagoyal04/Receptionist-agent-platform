@@ -109,8 +109,8 @@ export function getServerEnv(): ServerEnv {
 
   if (signupAllowedDomains.length === 0) {
     console.warn(
-      "[auth] SIGNUP_ALLOWED_DOMAINS is empty — anyone with any email address " +
-        "can create an account. Set it to your clinic's domain before deploying.",
+      "[auth] SIGNUP_ALLOWED_DOMAINS is empty — anyone can create an account. " +
+        "New accounts are `pending` and see nothing until an admin approves them on /team.",
     );
   }
 

@@ -2,7 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Headset } from "lucide-react";
 
-import { getCurrentUser } from "@/lib/auth/session";
+import { auth } from "@/lib/auth";
+import { getAccount } from "@/lib/auth/session";
+import { countPendingUsers } from "@/lib/data/users";
+import { AccessScreen } from "@/components/shell/access-screen";
 import { listCustomPagesForNav } from "@/lib/data/definitions";
 import { countOpenEscalations } from "@/lib/data/escalations";
 import { MobileNav, SidebarNav } from "@/components/shell/sidebar-nav";
@@ -17,14 +20,20 @@ import { UserMenu } from "@/components/shell/user-menu";
  * them as POSTs to the page route, outside this layout's render.
  */
 export default async function DashboardLayout({ children }: LayoutProps<"/">) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await getAccount();
+  if (!user) {
+    // A session whose account is gone: /login would bounce straight back.
+    if (await auth()) return <AccessScreen kind="missing" />;
+    redirect("/login");
+  }
+  // Signed up but not approved: no nav, no data.
+  if (user.role === "pending") return <AccessScreen kind="pending" email={user.email} />;
 
   // The nav lists the clinic's custom pages. A failure here must not take
   // down every page (conversations don't depend on it), so it degrades to
   // the fixed items and the page itself reports any real database problem.
   const isAdmin = user.role === "admin";
-  const [customPages, openEscalations] = await Promise.all([
+  const [customPages, openEscalations, pendingUsers] = await Promise.all([
     // Staff never see custom pages, so don't load them.
     isAdmin
       ? listCustomPagesForNav(user.clinicId).catch((error: unknown) => {
@@ -37,6 +46,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       console.error("[layout] couldn't count open escalations", error);
       return 0;
     }),
+    isAdmin
+      ? countPendingUsers(user.clinicId).catch((error: unknown) => {
+          console.error("[layout] couldn't count pending accounts", error);
+          return 0;
+        })
+      : Promise.resolve(0),
   ]);
 
   return (
@@ -72,6 +87,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             customPages={customPages}
             isAdmin={isAdmin}
             openEscalations={openEscalations}
+            pendingUsers={pendingUsers}
           />
         </div>
 
@@ -108,6 +124,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           customPages={customPages}
           isAdmin={isAdmin}
           openEscalations={openEscalations}
+          pendingUsers={pendingUsers}
         />
       </header>
 
