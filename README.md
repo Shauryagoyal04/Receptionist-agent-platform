@@ -1,6 +1,6 @@
-# Clinic Reception AI Console
+# Medi Desk AI: staff console
 
-A staff-facing web console for an AI virtual receptionist deployed at a clinic. Reception staff use it to review what the agent did: browse and filter conversations, read full transcripts including tool calls and escalations, and track aggregate performance.
+The staff-facing web console of **Medi Desk AI**, an AI receptionist for clinics. Reception staff use it to review what the agent did: browse and filter conversations, read full transcripts including tool calls and escalations, and track aggregate performance.
 
 **The AI agent itself is not part of this project.** It lives in [`reizn7/clinic-ai-agent`](https://github.com/reizn7/clinic-ai-agent) — a Python service on Google ADK + Gemini that talks to patients over WhatsApp and writes to MongoDB. This console reads the same database.
 

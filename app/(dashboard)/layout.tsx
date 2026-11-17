@@ -55,7 +55,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md">
             <Headset className="size-4" />
           </span>
-          <span className="text-sm font-semibold">Reception Console</span>
+          <span className="text-sm font-semibold">Medi Desk AI</span>
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
@@ -79,7 +79,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md">
               <Headset className="size-4" />
             </span>
-            <span className="text-sm font-semibold">Reception Console</span>
+            <span className="text-sm font-semibold">Medi Desk AI</span>
           </Link>
           <div className="w-44">
             <UserMenu

@@ -209,6 +209,7 @@ export type DoctorRecord = {
   id: string;
   name: string;
   specialization: string;
+  calendarEmail: string;
   isActive: boolean;
   availableDays: Weekday[];
   workingHours: { start: string; end: string };
@@ -225,6 +226,7 @@ function toDoctor(doc: Document): DoctorRecord {
     id: String(doc._id),
     name: readString(doc.name) ?? "",
     specialization: readString(doc.specialization) ?? "",
+    calendarEmail: readString(doc.calendarEmail) ?? "",
     isActive: doc.isActive === true,
     availableDays: Array.isArray(doc.availableDays)
       ? (WEEKDAYS.filter((day) => doc.availableDays.includes(day)) as Weekday[])
@@ -273,6 +275,7 @@ function doctorCoreDoc(core: DoctorCore): Document {
   return {
     name: core.name,
     specialization: core.specialization,
+    calendarEmail: core.calendarEmail || null,
     isActive: core.isActive,
     availableDays: core.availableDays,
     workingHours: { start: core.workingHours.start, end: core.workingHours.end },

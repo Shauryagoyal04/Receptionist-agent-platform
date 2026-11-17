@@ -483,6 +483,16 @@ export const doctorCoreSchema = z
       .transform(stripDoctorPrefix)
       .pipe(z.string().min(1, "Name is required.").max(120)),
     specialization: z.string().trim().max(120),
+    // Google Calendar the agent adds this doctor's appointments to ("" = no sync).
+    // The doctor must share that calendar with the clinic's service account.
+    calendarEmail: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .max(254)
+      .refine((value) => value === "" || z.email().safeParse(value).success, {
+        message: "Enter a valid email, or leave blank.",
+      }),
     isActive: z.boolean(),
     availableDays: z
       .array(z.enum(WEEKDAYS))

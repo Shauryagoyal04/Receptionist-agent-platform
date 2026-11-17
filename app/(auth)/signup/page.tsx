@@ -5,7 +5,7 @@ import { getServerEnv } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Create an account",
-  description: "Create a clinic reception console account.",
+  description: "Create a Medi Desk AI account.",
 };
 
 export default function SignUpPage() {

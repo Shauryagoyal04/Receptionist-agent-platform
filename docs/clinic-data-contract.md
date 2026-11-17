@@ -122,6 +122,7 @@ The agent depends on these exact names. Don't rename them. Clinic-defined fields
 | `clinicId` | string | |
 | `name` | string | required, **without** the "Dr." prefix (the agent adds it and matches on the bare name) |
 | `specialization` | string | e.g. "General Physician" |
+| `calendarEmail` | string \| null | the doctor's Google Calendar (its owner's email). The agent adds, moves and removes this doctor's appointments there. The doctor must share that calendar with the clinic's service account ("Make changes to events"). Blank/null = no calendar sync. |
 | `isActive` | boolean | only active doctors are offered to patients |
 | `availableDays` | string[] | full English weekday names: `"Monday"` … `"Sunday"` |
 | `workingHours` | `{ start: "HH:mm", end: "HH:mm" }` | 24h; slots are generated from `start` up to `end` |
@@ -157,7 +158,14 @@ The value at `attributes[titleField]` is the row's title, used both in the conso
 
 ### `appointments`
 
-These stay agent-owned and aren't configurable. They now also carry `clinicId`.
+These stay agent-owned and aren't configurable. They now also carry `clinicId`, plus two read-only status objects the agent keeps up to date, which the console may show:
+
+| Field | Shape |
+|---|---|
+| `calendarSync` | `{ status: "synced" \| "removed" \| "skipped" \| "error", calendarId?, eventId?, reason?, error?, at? }`: whether the booking is on the doctor's Google Calendar |
+| `confirmation` | `{ status: "sent" \| "error", event: "booked" \| "rescheduled" \| "cancelled", via?: "template" \| "text", messageId?, error?, at? }`: the last WhatsApp confirmation sent to the patient |
+
+Both are written by the agent's `outbox` worker (collection `outbox`, agent-internal).
 
 ---
 

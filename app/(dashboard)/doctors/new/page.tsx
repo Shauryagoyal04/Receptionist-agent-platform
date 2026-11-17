@@ -22,6 +22,7 @@ export default async function NewDoctorPage() {
             id: null,
             name: "",
             specialization: "",
+            calendarEmail: "",
             isActive: true,
             availableDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
             workingHours: { start: "09:00", end: "17:00" },

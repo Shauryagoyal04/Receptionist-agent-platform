@@ -34,6 +34,7 @@ export default async function DoctorPage({ params }: PageProps<"/doctors/[id]">)
             id: doctor.id,
             name: doctor.name,
             specialization: doctor.specialization,
+            calendarEmail: doctor.calendarEmail,
             isActive: doctor.isActive,
             availableDays: doctor.availableDays,
             workingHours: doctor.workingHours,

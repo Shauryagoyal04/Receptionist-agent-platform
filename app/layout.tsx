@@ -27,11 +27,11 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Reception Console",
-    template: "%s · Reception Console",
+    default: "Medi Desk AI",
+    template: "%s · Medi Desk AI",
   },
   description:
-    "Review what the virtual receptionist handled: conversations, transcripts and analytics.",
+    "Medi Desk AI: review what your AI receptionist handled and manage your clinic's doctors, patients and services.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

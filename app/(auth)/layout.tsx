@@ -19,7 +19,7 @@ export default async function AuthLayout({ children }: LayoutProps<"/">) {
           <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
             <Headset className="size-4" />
           </span>
-          <span className="text-base font-semibold">Reception Console</span>
+          <span className="text-base font-semibold">Medi Desk AI</span>
         </div>
         {children}
       </div>

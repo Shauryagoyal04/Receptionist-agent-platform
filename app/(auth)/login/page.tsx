@@ -7,7 +7,7 @@ import { getServerEnv } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Sign in",
-  description: "Sign in to the clinic reception console.",
+  description: "Sign in to Medi Desk AI.",
 };
 
 function SignInFallback() {

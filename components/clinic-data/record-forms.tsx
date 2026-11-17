@@ -219,6 +219,7 @@ export type DoctorFormInitial = {
   id: string | null;
   name: string;
   specialization: string;
+  calendarEmail: string;
   isActive: boolean;
   availableDays: Weekday[];
   workingHours: { start: string; end: string };
@@ -235,6 +236,7 @@ export function DoctorForm({
 }) {
   const [name, setName] = useState(initial.name);
   const [specialization, setSpecialization] = useState(initial.specialization);
+  const [calendarEmail, setCalendarEmail] = useState(initial.calendarEmail);
   const [isActive, setIsActive] = useState(initial.isActive);
   const [days, setDays] = useState<Weekday[]>(initial.availableDays);
   const [start, setStart] = useState(initial.workingHours.start);
@@ -257,6 +259,7 @@ export function DoctorForm({
               core: {
                 name,
                 specialization,
+                calendarEmail,
                 isActive,
                 availableDays: days,
                 workingHours: { start, end },
@@ -298,6 +301,21 @@ export function DoctorForm({
                   value={specialization}
                   placeholder="General Physician"
                   onChange={(e) => setSpecialization(e.target.value)}
+                />
+              </FormField>
+              <FormField
+                id="calendarEmail"
+                label="Google Calendar email"
+                hint="Bookings are added to this calendar. The doctor must share it with the clinic's calendar service account (Make changes to events). Leave blank to skip."
+                error={errors.calendarEmail}
+              >
+                <Input
+                  id="calendarEmail"
+                  type="email"
+                  value={calendarEmail}
+                  placeholder="asha.mehta@gmail.com"
+                  aria-invalid={Boolean(errors.calendarEmail) || undefined}
+                  onChange={(e) => setCalendarEmail(e.target.value)}
                 />
               </FormField>
               <FormField
