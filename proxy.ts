@@ -57,7 +57,9 @@ export const config = {
      * - api routes (they authenticate themselves)
      * - _next/static and _next/image (build output)
      * - favicon and other root-level static files
+     * - call.html: the public patient voice-call page (copied from the agent
+     *   repo); access is gated by the agent's VOICE_WS_TOKEN, not a staff login
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|call\\.html$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };
