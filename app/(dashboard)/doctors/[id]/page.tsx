@@ -1,0 +1,47 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import { PageHeader, PageShell } from "@/components/page-header";
+import { DoctorForm } from "@/components/clinic-data/record-forms";
+import { getCurrentUser } from "@/lib/auth/session";
+import { getDoctor } from "@/lib/data/clinic-records";
+import { getDefinition } from "@/lib/data/definitions";
+
+export const metadata: Metadata = { title: "Doctor" };
+
+export default async function DoctorPage({ params }: PageProps<"/doctors/[id]">) {
+  const user = await getCurrentUser();
+  if (!user) return null;
+  const { id } = await params;
+
+  const [doctor, definition] = await Promise.all([
+    getDoctor(user.clinicId, id),
+    getDefinition(user.clinicId, "doctor"),
+  ]);
+  if (!doctor) notFound();
+
+  return (
+    <PageShell className="max-w-4xl">
+      <PageHeader
+        title={doctor.name ? `Dr. ${doctor.name}` : "Doctor"}
+        description={doctor.isActive ? "Active: offered to patients." : "Inactive: hidden from patients."}
+      />
+      <div className="mt-6">
+        <DoctorForm
+          key={doctor.updatedAt ?? doctor.id}
+          fields={definition?.fields ?? []}
+          initial={{
+            id: doctor.id,
+            name: doctor.name,
+            specialization: doctor.specialization,
+            isActive: doctor.isActive,
+            availableDays: doctor.availableDays,
+            workingHours: doctor.workingHours,
+            consultationDuration: doctor.consultationDuration,
+            attributes: doctor.attributes,
+          }}
+        />
+      </div>
+    </PageShell>
+  );
+}

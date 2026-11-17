@@ -19,27 +19,55 @@ import { getServerEnv } from "@/lib/env";
  * ever read from here.
  */
 
+/**
+ * How long to wait for a usable server before giving up.
+ *
+ * The default of 30s hangs a page render; 8s turned out to be too tight on a
+ * weak link (a phone hotspot regularly stalls past it), and the failure then
+ * looks like an application bug rather than a network one. 20s is long enough
+ * to ride out a stall and short enough that a genuinely unreachable database
+ * still fails visibly. Override with MONGODB_TIMEOUT_MS if needed.
+ */
+const SERVER_SELECTION_TIMEOUT_MS = Number.parseInt(
+  process.env.MONGODB_TIMEOUT_MS ?? "20000",
+  10,
+);
+
 const options: MongoClientOptions = {
-  // Fail fast with a clear error instead of hanging a page render.
-  serverSelectionTimeoutMS: 8000,
+  serverSelectionTimeoutMS: Number.isFinite(SERVER_SELECTION_TIMEOUT_MS)
+    ? SERVER_SELECTION_TIMEOUT_MS
+    : 20000,
   retryWrites: true,
+  retryReads: true,
 };
 
 declare global {
   var __mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
+/**
+ * Connects, and forgets the attempt if it fails.
+ *
+ * Caching the promise is what keeps one connection pool per process, but a
+ * *rejected* promise must not stay cached: every later request would await the
+ * same rejection and the app would never recover from a transient blip, even
+ * once the network came back. Clearing the slot on failure means the next
+ * request tries again.
+ */
 function createClientPromise(): Promise<MongoClient> {
   const { MONGODB_URI } = getServerEnv();
-  return new MongoClient(MONGODB_URI, options).connect();
+  const promise = new MongoClient(MONGODB_URI, options).connect();
+
+  promise.catch(() => {
+    if (globalThis.__mongoClientPromise === promise) {
+      globalThis.__mongoClientPromise = undefined;
+    }
+  });
+
+  return promise;
 }
 
 export function getMongoClientPromise(): Promise<MongoClient> {
-  if (process.env.NODE_ENV === "production") {
-    // No global in production: the module is evaluated once per instance.
-    globalThis.__mongoClientPromise ??= createClientPromise();
-    return globalThis.__mongoClientPromise;
-  }
   globalThis.__mongoClientPromise ??= createClientPromise();
   return globalThis.__mongoClientPromise;
 }

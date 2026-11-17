@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Headset } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/session";
+import { listCustomPagesForNav } from "@/lib/data/definitions";
 import { MobileNav, SidebarNav } from "@/components/shell/sidebar-nav";
 import { UserMenu } from "@/components/shell/user-menu";
 
@@ -17,6 +18,17 @@ import { UserMenu } from "@/components/shell/user-menu";
 export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+
+  // The nav lists the clinic's custom pages. A failure here must not take
+  // down every page (conversations don't depend on it), so it degrades to
+  // the fixed items and the page itself reports any real database problem.
+  const customPages = await listCustomPagesForNav(user.clinicId).catch(
+    (error: unknown) => {
+      console.error("[layout] couldn't load custom pages for nav", error);
+      return [];
+    },
+  );
+  const isAdmin = user.role === "admin";
 
   return (
     /*
@@ -46,8 +58,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           <span className="text-sm font-semibold">Reception Console</span>
         </div>
 
-        <div className="flex-1 py-2">
-          <SidebarNav />
+        <div className="flex-1 overflow-y-auto py-2">
+          <SidebarNav customPages={customPages} isAdmin={isAdmin} />
         </div>
 
         <div className="border-sidebar-border border-t p-2">
@@ -79,7 +91,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             />
           </div>
         </div>
-        <MobileNav />
+        <MobileNav customPages={customPages} isAdmin={isAdmin} />
       </header>
 
       <div id="main-content" className="lg:pl-60">

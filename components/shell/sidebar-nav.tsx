@@ -1,57 +1,108 @@
 "use client";
 
 import Link from "next/link";
-import { useSelectedLayoutSegment } from "next/navigation";
+import { useSelectedLayoutSegments } from "next/navigation";
 
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "@/components/shell/nav-items";
+import {
+  CUSTOM_PAGE_ICON,
+  NAV_ITEMS,
+  SETTINGS_NAV_ITEM,
+  type CustomNavPage,
+  type NavItem,
+} from "@/components/shell/nav-items";
 
-/**
- * Navigation for the fixed left rail. A Client Component only because the
- * active state depends on the current segment; everything around it stays on
- * the server.
+/*
+ * Navigation for the fixed left rail and the mobile tab bar. A Client
+ * Component only because the active state depends on the current segments;
+ * the list of custom pages and the role come from the layout as props.
  */
-export function SidebarNav() {
-  const segment = useSelectedLayoutSegment();
+
+type NavProps = {
+  customPages: CustomNavPage[];
+  isAdmin: boolean;
+};
+
+function useNav({ customPages, isAdmin }: NavProps) {
+  const current = useSelectedLayoutSegments().filter(
+    (segment) => !segment.startsWith("("),
+  );
+  const custom: NavItem[] = customPages.map((page) => ({
+    href: `/data/${page.entityType}`,
+    segments: ["data", page.entityType],
+    label: page.label,
+    icon: CUSTOM_PAGE_ICON,
+    description: page.label,
+  }));
+  const isActive = (item: NavItem) =>
+    item.segments.every((segment, index) => current[index] === segment);
+  return {
+    main: NAV_ITEMS,
+    custom,
+    settings: isAdmin ? [SETTINGS_NAV_ITEM] : [],
+    isActive,
+  };
+}
+
+function RailLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      <span className="truncate">{item.label}</span>
+    </Link>
+  );
+}
+
+export function SidebarNav(props: NavProps) {
+  const { main, custom, settings, isActive } = useNav(props);
 
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5 px-3">
-      {NAV_ITEMS.map((item) => {
-        const active = segment === item.segment;
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-              active
-                ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-            )}
-          >
-            <Icon className="size-4 shrink-0" />
-            {item.label}
-          </Link>
-        );
-      })}
+      {main.map((item) => (
+        <RailLink key={item.href} item={item} active={isActive(item)} />
+      ))}
+      {custom.length > 0 && (
+        <>
+          <p className="text-sidebar-foreground/50 mt-4 mb-1 px-2.5 text-xs font-medium">
+            Clinic pages
+          </p>
+          {custom.map((item) => (
+            <RailLink key={item.href} item={item} active={isActive(item)} />
+          ))}
+        </>
+      )}
+      {settings.length > 0 && (
+        <div className="mt-4">
+          {settings.map((item) => (
+            <RailLink key={item.href} item={item} active={isActive(item)} />
+          ))}
+        </div>
+      )}
     </nav>
   );
 }
 
 /**
- * The same destinations as a horizontal tab bar for narrow screens. With only
- * two items this is better than a drawer: no toggle to discover, no focus
- * trap to get wrong, and both destinations stay one tap away.
+ * The same destinations as a horizontally scrolling tab bar for narrow
+ * screens: no drawer to discover, no focus trap to get wrong.
  */
-export function MobileNav() {
-  const segment = useSelectedLayoutSegment();
+export function MobileNav(props: NavProps) {
+  const { main, custom, settings, isActive } = useNav(props);
 
   return (
     <nav aria-label="Main" className="flex gap-1 overflow-x-auto px-3 pb-2">
-      {NAV_ITEMS.map((item) => {
-        const active = segment === item.segment;
+      {[...main, ...custom, ...settings].map((item) => {
+        const active = isActive(item);
         const Icon = item.icon;
         return (
           <Link
