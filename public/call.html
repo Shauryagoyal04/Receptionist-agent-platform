@@ -15,8 +15,6 @@
     --accent: #1a7f5a;
     --accent-text: #ffffff;
     --danger: #c0392b;
-    --user-bubble: #e7f3ee;
-    --agent-bubble: #eef0f4;
     --focus: #2b6cb0;
   }
   @media (prefers-color-scheme: dark) {
@@ -29,8 +27,6 @@
       --accent: #2fa77a;
       --accent-text: #08130e;
       --danger: #e5675a;
-      --user-bubble: #193328;
-      --agent-bubble: #242a33;
       --focus: #7fb0ff;
     }
   }
@@ -86,23 +82,6 @@
   #status { margin: 12px 0 0; min-height: 1.45em; color: var(--muted); }
   #status.error { color: var(--danger); }
   #status.live { color: var(--accent); font-weight: 600; }
-  .transcript-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .transcript-head h2 { font-size: 1rem; margin: 0; }
-  #transcript {
-    margin-top: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 50vh;
-    overflow-y: auto;
-    overflow-wrap: anywhere;
-  }
-  #transcript:empty::before { content: "The conversation will appear here."; color: var(--muted); font-size: 0.9rem; }
-  .line { padding: 8px 12px; border-radius: 12px; max-width: 88%; }
-  .line .who { display: block; font-size: 0.75rem; color: var(--muted); }
-  .line.user { align-self: flex-end; background: var(--user-bubble); }
-  .line.assistant { align-self: flex-start; background: var(--agent-bubble); }
-  .line.partial .text { opacity: 0.7; }
   .tip { color: var(--muted); font-size: 0.85rem; text-align: center; margin: 0; }
 </style>
 </head>
@@ -121,11 +100,6 @@
       <button id="callBtn" type="submit">Call the clinic</button>
     </form>
     <p id="status" role="status" aria-live="polite"></p>
-  </section>
-
-  <section class="card" aria-label="Live transcript">
-    <div class="transcript-head"><h2>Transcript</h2></div>
-    <div id="transcript"></div>
   </section>
 
   <p class="tip">Tip: use headphones so the receptionist doesn't hear itself.</p>
@@ -235,7 +209,6 @@ const form = $("form");
 const phoneInput = $("phone");
 const callBtn = $("callBtn");
 const statusEl = $("status");
-const transcriptEl = $("transcript");
 
 const END_MESSAGES = {
   invalid_caller: "That phone number doesn't look right. Please check it and try again.",
@@ -315,30 +288,6 @@ function pcm16ToFloat32(b64) {
   return out;
 }
 
-// ---- Transcript --------------------------------------------------------------
-const openLine = { user: null, assistant: null };
-
-function showTranscript(role, text, final) {
-  if (role !== "user" && role !== "assistant") return;
-  let el = openLine[role];
-  if (!el) {
-    el = document.createElement("div");
-    el.className = "line " + role;
-    const who = document.createElement("span");
-    who.className = "who";
-    who.textContent = role === "user" ? "You" : "Receptionist";
-    const body = document.createElement("span");
-    body.className = "text";
-    el.append(who, body);
-    transcriptEl.append(el);
-    openLine[role] = el;
-  }
-  el.querySelector(".text").textContent = text;
-  el.classList.toggle("partial", !final);
-  if (final) openLine[role] = null;
-  transcriptEl.scrollTop = transcriptEl.scrollHeight;
-}
-
 // ---- Call lifecycle --------------------------------------------------------------
 async function startCall() {
   const raw = phoneInput.value;
@@ -367,8 +316,6 @@ async function startCall() {
   setInCall(true);
   callBtn.disabled = true;
   setStatus("Requesting microphone…");
-  transcriptEl.textContent = "";
-  openLine.user = openLine.assistant = null;
 
   try {
     thisCall.stream = await navigator.mediaDevices.getUserMedia({
@@ -403,7 +350,7 @@ async function startCall() {
   const ws = new WebSocket(wsUrl());
   thisCall.ws = ws;
   ws.onopen = () => {
-    ws.send(JSON.stringify({ event: "start", call_id: newCallId(), caller: raw.trim(), transcripts: true }));
+    ws.send(JSON.stringify({ event: "start", call_id: newCallId(), caller: raw.trim() }));
   };
   ws.onmessage = (e) => onServerMessage(thisCall, e.data);
   ws.onerror = () => {}; // onclose follows with the details
@@ -431,9 +378,6 @@ function onServerMessage(c, data) {
       break;
     case "clear":
       if (c.player) c.player.port.postMessage("clear");
-      break;
-    case "transcript":
-      showTranscript(msg.role, String(msg.text || ""), !!msg.final);
       break;
     case "end":
       finish(END_MESSAGES[msg.reason] || "The call has ended.", msg.reason === "session_ended" ? "" : "error");
@@ -497,9 +441,6 @@ function finish(message, kind) {
     if (node) { try { node.disconnect(); } catch (_) { /* not connected */ } }
   }
   if (c.ctx && c.ctx.state !== "closed") c.ctx.close().catch(() => {});
-  for (const role of ["user", "assistant"]) {
-    if (openLine[role]) { openLine[role].classList.remove("partial"); openLine[role] = null; }
-  }
   setInCall(false);
   setStatus(message, kind);
 }
