@@ -2,6 +2,7 @@ import {
   Building2,
   ChartNoAxesColumn,
   Database,
+  Headphones,
   MessagesSquare,
   Settings2,
   Stethoscope,
@@ -24,6 +25,10 @@ export type NavItem = {
   label: string;
   icon: LucideIcon;
   description: string;
+  /** Hidden from staff, who only get Analytics, Conversations and Escalations. */
+  adminOnly?: boolean;
+  /** Shows the count of open escalations next to the label. */
+  showsOpenEscalations?: boolean;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -42,11 +47,20 @@ export const NAV_ITEMS: readonly NavItem[] = [
     description: "Browse and review individual calls and chats",
   },
   {
+    href: "/escalations",
+    segments: ["escalations"],
+    label: "Escalations",
+    icon: Headphones,
+    description: "Patients who asked for a person",
+    showsOpenEscalations: true,
+  },
+  {
     href: "/clinic",
     segments: ["clinic"],
     label: "Clinic",
     icon: Building2,
     description: "What the agent tells patients about the clinic",
+    adminOnly: true,
   },
   {
     href: "/doctors",
@@ -54,6 +68,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "Doctors",
     icon: Stethoscope,
     description: "Who patients can book, and when",
+    adminOnly: true,
   },
   {
     href: "/patients",
@@ -61,6 +76,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: "Patients",
     icon: Users,
     description: "People who have contacted the clinic",
+    adminOnly: true,
   },
 ];
 
@@ -76,5 +92,5 @@ export const SETTINGS_NAV_ITEM: NavItem = {
 /** Icon for clinic-defined pages, which are listed after the fixed items. */
 export const CUSTOM_PAGE_ICON = Database;
 
-/** Serializable form of a custom page, passed from the layout. */
+/** Serializable form of a custom page, passed from the layout (admins only). */
 export type CustomNavPage = { entityType: string; label: string };

@@ -15,6 +15,7 @@ loadEnv({ path: ".env", quiet: true });
 import { getMongoClientPromise } from "@/lib/mongodb";
 import { getServerEnv } from "@/lib/env";
 import { ensureConversationIndexes } from "@/lib/data/conversations";
+import { ensureEscalationIndexes } from "@/lib/data/escalations";
 import { ensureUserIndexes } from "@/lib/data/users";
 
 async function main() {
@@ -23,8 +24,9 @@ async function main() {
 
   await ensureConversationIndexes();
   await ensureUserIndexes();
+  await ensureEscalationIndexes();
 
-  console.log("Done. Conversation and user indexes are in place.");
+  console.log("Done. Conversation, user and escalation indexes are in place.");
   await (await getMongoClientPromise()).close();
 }
 

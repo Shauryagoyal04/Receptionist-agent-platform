@@ -1,4 +1,4 @@
-import { ArrowRightLeft, Info, TriangleAlert } from "lucide-react";
+import { ArrowRightLeft, Check, Clock, Info, TriangleAlert } from "lucide-react";
 
 import { ToolCallBlock } from "@/components/conversations/tool-call-block";
 import { cn, formatLatency } from "@/lib/utils";
@@ -72,6 +72,7 @@ function MessageBlock({ message }: { message: Message }) {
   }
 
   const isAgent = message.role === "agent";
+  const isStaff = message.role === "staff";
   const lowConfidence =
     isAgent &&
     message.confidence !== null &&
@@ -81,11 +82,19 @@ function MessageBlock({ message }: { message: Message }) {
     <div
       className={cn(
         "rounded-md px-3 py-2.5",
-        isAgent ? "bg-muted/40 border-l-2 border-l-primary" : "border bg-card",
+        isAgent
+          ? "bg-muted/40 border-l-2 border-l-primary"
+          : isStaff
+            ? "bg-status-escalated-tint/40 border-l-2 border-l-status-escalated"
+            : "border bg-card",
       )}
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="text-xs font-medium">{ROLE_LABELS[message.role]}</span>
+        <span className="text-xs font-medium">
+          {isStaff && message.staff
+            ? `${message.staff.name} (staff)`
+            : ROLE_LABELS[message.role]}
+        </span>
         <time
           dateTime={message.timestamp}
           className="text-muted-foreground tabular font-mono text-xs"
@@ -114,6 +123,8 @@ function MessageBlock({ message }: { message: Message }) {
 
       <p className="mt-1 text-sm whitespace-pre-wrap">{message.content}</p>
 
+      {isStaff && message.delivery && <DeliveryStatus delivery={message.delivery} />}
+
       {lowConfidence && message.confidence !== null && (
         <p className="text-status-abandoned mt-1.5 flex items-center gap-1.5 text-xs">
           <TriangleAlert className="size-3.5 shrink-0" />
@@ -124,5 +135,35 @@ function MessageBlock({ message }: { message: Message }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** Where a staff reply is: queued for the agent to send, sent, or failed. */
+function DeliveryStatus({
+  delivery,
+}: {
+  delivery: NonNullable<Message["delivery"]>;
+}) {
+  if (delivery.status === "sent") {
+    return (
+      <p className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
+        <Check className="size-3.5 shrink-0" />
+        Sent on WhatsApp
+      </p>
+    );
+  }
+  if (delivery.status === "failed") {
+    return (
+      <p role="alert" className="text-status-escalated mt-1.5 flex items-start gap-1.5 text-xs">
+        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+        Not delivered{delivery.error ? ` — ${delivery.error}` : ""}. Call the patient instead.
+      </p>
+    );
+  }
+  return (
+    <p className="text-muted-foreground mt-1.5 flex items-center gap-1 text-xs">
+      <Clock className="size-3.5 shrink-0" />
+      Sending…
+    </p>
   );
 }

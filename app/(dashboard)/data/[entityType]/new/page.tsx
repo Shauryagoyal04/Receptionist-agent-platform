@@ -3,15 +3,14 @@ import { notFound } from "next/navigation";
 
 import { PageHeader, PageShell } from "@/components/page-header";
 import { RecordForm } from "@/components/clinic-data/record-forms";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { isSystemEntityType } from "@/lib/clinic-data/model";
 import { getDefinition } from "@/lib/data/definitions";
 
 export const metadata: Metadata = { title: "Add" };
 
 export default async function NewRecordPage({ params }: PageProps<"/data/[entityType]/new">) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
   const { entityType } = await params;
   if (isSystemEntityType(entityType)) notFound();
   const definition = await getDefinition(user.clinicId, entityType);

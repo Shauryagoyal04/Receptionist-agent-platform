@@ -92,4 +92,11 @@ export const COLLECTIONS = {
   patients: "patients",
   clinic: "clinic",
   transcripts: "transcripts",
+  /**
+   * Shared with the agent (docs/staff-handoff-contract.md): the agent inserts
+   * escalations and sends outbox jobs; the console claims/resolves escalations
+   * and inserts `staff.reply` outbox jobs.
+   */
+  escalations: "escalations",
+  outbox: "outbox",
 } as const;

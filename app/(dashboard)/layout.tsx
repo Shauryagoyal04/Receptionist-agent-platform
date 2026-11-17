@@ -4,6 +4,7 @@ import { Headset } from "lucide-react";
 
 import { getCurrentUser } from "@/lib/auth/session";
 import { listCustomPagesForNav } from "@/lib/data/definitions";
+import { countOpenEscalations } from "@/lib/data/escalations";
 import { MobileNav, SidebarNav } from "@/components/shell/sidebar-nav";
 import { UserMenu } from "@/components/shell/user-menu";
 
@@ -22,13 +23,21 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   // The nav lists the clinic's custom pages. A failure here must not take
   // down every page (conversations don't depend on it), so it degrades to
   // the fixed items and the page itself reports any real database problem.
-  const customPages = await listCustomPagesForNav(user.clinicId).catch(
-    (error: unknown) => {
-      console.error("[layout] couldn't load custom pages for nav", error);
-      return [];
-    },
-  );
   const isAdmin = user.role === "admin";
+  const [customPages, openEscalations] = await Promise.all([
+    // Staff never see custom pages, so don't load them.
+    isAdmin
+      ? listCustomPagesForNav(user.clinicId).catch((error: unknown) => {
+          console.error("[layout] couldn't load custom pages for nav", error);
+          return [];
+        })
+      : Promise.resolve([]),
+    // A badge is not worth failing the page for.
+    countOpenEscalations(user.clinicId).catch((error: unknown) => {
+      console.error("[layout] couldn't count open escalations", error);
+      return 0;
+    }),
+  ]);
 
   return (
     /*
@@ -59,7 +68,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
-          <SidebarNav customPages={customPages} isAdmin={isAdmin} />
+          <SidebarNav
+            customPages={customPages}
+            isAdmin={isAdmin}
+            openEscalations={openEscalations}
+          />
         </div>
 
         <div className="border-sidebar-border border-t p-2">
@@ -91,7 +104,11 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             />
           </div>
         </div>
-        <MobileNav customPages={customPages} isAdmin={isAdmin} />
+        <MobileNav
+          customPages={customPages}
+          isAdmin={isAdmin}
+          openEscalations={openEscalations}
+        />
       </header>
 
       <div id="main-content" className="lg:pl-60">

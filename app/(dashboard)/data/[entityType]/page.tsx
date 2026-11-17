@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { formatAttribute } from "@/lib/clinic-data/format";
 import { activeFields, isSystemEntityType } from "@/lib/clinic-data/model";
 import { listRecords } from "@/lib/data/clinic-records";
@@ -34,8 +34,7 @@ export default async function CustomPageList({
   params,
   searchParams,
 }: PageProps<"/data/[entityType]">) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
   const { entityType } = await params;
   if (isSystemEntityType(entityType)) notFound();
 

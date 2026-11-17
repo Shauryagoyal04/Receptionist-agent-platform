@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
 import type { UserRole } from "@/lib/types";
@@ -43,3 +44,17 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     clinicId: user.clinicId,
   };
 });
+
+/**
+ * For admin-only pages (clinic data, doctors, patients, custom pages, data
+ * settings). Staff only get Analytics, Conversations and Escalations
+ * (docs/staff-handoff-contract.md), so they are sent to Analytics rather than
+ * shown a page they can't use. Server Actions check the role themselves; a
+ * redirect is no use to a POST.
+ */
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (user.role !== "admin") redirect("/analytics");
+  return user;
+}

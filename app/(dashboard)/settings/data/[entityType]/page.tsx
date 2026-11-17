@@ -9,7 +9,7 @@ import { PageMetaForm } from "@/components/clinic-data/settings/page-meta-form";
 import { AdminOnly } from "@/components/clinic-data/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { SYSTEM_PAGES, isSystemEntityType } from "@/lib/clinic-data/model";
 import { getDefinition } from "@/lib/data/definitions";
 
@@ -26,8 +26,7 @@ const CORE_FIELDS: Record<string, string> = {
 export default async function PageSettings({
   params,
 }: PageProps<"/settings/data/[entityType]">) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
   if (user.role !== "admin") return <AdminOnly />;
 
   const { entityType } = await params;

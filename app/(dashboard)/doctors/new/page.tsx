@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 
 import { PageHeader, PageShell } from "@/components/page-header";
 import { DoctorForm } from "@/components/clinic-data/record-forms";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { getDefinition } from "@/lib/data/definitions";
 
 export const metadata: Metadata = { title: "Add doctor" };
 
 export default async function NewDoctorPage() {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
   const definition = await getDefinition(user.clinicId, "doctor");
 
   return (

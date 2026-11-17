@@ -3,15 +3,14 @@ import { notFound } from "next/navigation";
 
 import { PageHeader, PageShell } from "@/components/page-header";
 import { DoctorForm } from "@/components/clinic-data/record-forms";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { getDoctor } from "@/lib/data/clinic-records";
 import { getDefinition } from "@/lib/data/definitions";
 
 export const metadata: Metadata = { title: "Doctor" };
 
 export default async function DoctorPage({ params }: PageProps<"/doctors/[id]">) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
   const { id } = await params;
 
   const [doctor, definition] = await Promise.all([

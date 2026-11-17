@@ -44,8 +44,8 @@ import {
  * clinicId only from that session, validates its input with zod, and returns
  * expected failures instead of throwing so forms can show them inline.
  *
- * Roles (§5): definitions are admin-only; records and clinic info are
- * admin + staff.
+ * Roles: everything here is admin-only. Staff only get Analytics,
+ * Conversations and Escalations (docs/staff-handoff-contract.md).
  */
 
 export type ActionResult<T = undefined> =
@@ -54,6 +54,7 @@ export type ActionResult<T = undefined> =
 
 const SESSION_EXPIRED = { ok: false, error: "Your session expired. Sign in again." } as const;
 const ADMIN_ONLY = { ok: false, error: "Only admins can change pages and fields." } as const;
+const ADMIN_ONLY_DATA = { ok: false, error: "Only admins can change clinic data." } as const;
 const GENERIC = "Couldn't save that. Try again.";
 
 type Fail = { ok: false; error: string; fieldErrors?: Record<string, string> };
@@ -446,6 +447,7 @@ export async function saveClinicInfo(
 ): Promise<ActionResult> {
   const user = await requireUser();
   if (!user) return SESSION_EXPIRED;
+  if (user.role !== "admin") return ADMIN_ONLY_DATA;
   const shape = clinicInputSchema.safeParse(input);
   if (!shape.success) return fail(GENERIC);
 
@@ -482,6 +484,7 @@ export async function saveDoctor(
 ): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
   if (!user) return SESSION_EXPIRED;
+  if (user.role !== "admin") return ADMIN_ONLY_DATA;
   const shape = recordInputSchema.safeParse(input);
   if (!shape.success || (id !== null && typeof id !== "string")) return fail(GENERIC);
 
@@ -524,6 +527,7 @@ export async function setDoctorActiveFlag(
 ): Promise<ActionResult> {
   const user = await requireUser();
   if (!user) return SESSION_EXPIRED;
+  if (user.role !== "admin") return ADMIN_ONLY_DATA;
   if (typeof id !== "string" || typeof isActive !== "boolean") return fail(GENERIC);
   try {
     const found = await setDoctorActive(user.clinicId, id, isActive);
@@ -543,6 +547,7 @@ export async function savePatient(
 ): Promise<ActionResult> {
   const user = await requireUser();
   if (!user) return SESSION_EXPIRED;
+  if (user.role !== "admin") return ADMIN_ONLY_DATA;
   const shape = recordInputSchema.safeParse(input);
   if (!shape.success || typeof id !== "string") return fail(GENERIC);
 
@@ -590,6 +595,7 @@ export async function saveRecord(
 ): Promise<ActionResult<{ id: string }>> {
   const user = await requireUser();
   if (!user) return SESSION_EXPIRED;
+  if (user.role !== "admin") return ADMIN_ONLY_DATA;
   const shape = customInputSchema.safeParse(input);
   if (!shape.success || typeof entityType !== "string") return fail(GENERIC);
   if (isSystemEntityType(entityType)) return fail("That page couldn't be found.");
@@ -640,6 +646,7 @@ export async function setRecordActiveFlag(
 ): Promise<ActionResult> {
   const user = await requireUser();
   if (!user) return SESSION_EXPIRED;
+  if (user.role !== "admin") return ADMIN_ONLY_DATA;
   if (typeof entityType !== "string" || typeof id !== "string" || typeof isActive !== "boolean") {
     return fail(GENERIC);
   }

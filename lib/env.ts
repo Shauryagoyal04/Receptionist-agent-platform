@@ -47,9 +47,11 @@ const serverEnvSchema = z.object({
    * a human" figure pinned at 100%, is worse than one that shows neither.
    */
   ENABLED_CHANNELS: z.string().default("whatsapp"),
+  // On by default: staff work the Escalations page and reply to WhatsApp
+  // chats from the console (docs/staff-handoff-contract.md).
   HUMAN_HANDOFF_ENABLED: z
     .string()
-    .default("false")
+    .default("true")
     .transform((value) => value.trim().toLowerCase() === "true"),
 });
 

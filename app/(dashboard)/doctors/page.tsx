@@ -16,7 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { formatAttribute, formatDays, formatTime } from "@/lib/clinic-data/format";
 import { activeFields } from "@/lib/clinic-data/model";
 import { listDoctors } from "@/lib/data/clinic-records";
@@ -29,8 +29,7 @@ export const metadata: Metadata = {
 };
 
 export default async function DoctorsPage({ searchParams }: PageProps<"/doctors">) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
 
   const { q, filters } = parseFilterParams(await searchParams);
   const definition = await getDefinition(user.clinicId, "doctor");

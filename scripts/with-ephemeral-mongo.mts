@@ -9,7 +9,7 @@
  * Nothing it writes touches the real database.
  */
 import { MongoMemoryServer } from "mongodb-memory-server";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 
 const server = await MongoMemoryServer.create({ binary: { version: "7.0.14" } });
 const uri = server.getUri();
@@ -25,15 +25,29 @@ const env = {
   SIGNUP_ALLOWED_DOMAINS: "",
 };
 
+/*
+ * Async spawn, not spawnSync: mongod runs as a child of THIS process and logs
+ * through a pipe it drains on the event loop. Blocking the loop for a whole
+ * script lets that pipe fill, mongod stalls writing its log, and the next
+ * script times out connecting to it.
+ */
+function run(script: string): Promise<number> {
+  return new Promise((resolve) => {
+    const child = spawn("npx", ["tsx", "--conditions=react-server", script], {
+      stdio: "inherit",
+      env,
+    });
+    child.on("exit", (code) => resolve(code ?? 1));
+    child.on("error", () => resolve(1));
+  });
+}
+
 let status = 0;
 for (const script of process.argv.slice(2)) {
   console.log(`\n[harness] ── ${script} ──`);
-  const result = spawnSync("npx", ["tsx", "--conditions=react-server", script], {
-    stdio: "inherit",
-    env,
-  });
-  if (result.status !== 0) {
-    status = result.status ?? 1;
+  const code = await run(script);
+  if (code !== 0) {
+    status = code;
     break;
   }
 }

@@ -21,13 +21,16 @@ import {
 type NavProps = {
   customPages: CustomNavPage[];
   isAdmin: boolean;
+  /** Open escalations, shown as a count next to "Escalations". */
+  openEscalations: number;
 };
 
 function useNav({ customPages, isAdmin }: NavProps) {
   const current = useSelectedLayoutSegments().filter(
     (segment) => !segment.startsWith("("),
   );
-  const custom: NavItem[] = customPages.map((page) => ({
+  // Staff only get the fixed staff pages; custom pages are clinic data.
+  const custom: NavItem[] = (isAdmin ? customPages : []).map((page) => ({
     href: `/data/${page.entityType}`,
     segments: ["data", page.entityType],
     label: page.label,
@@ -37,14 +40,34 @@ function useNav({ customPages, isAdmin }: NavProps) {
   const isActive = (item: NavItem) =>
     item.segments.every((segment, index) => current[index] === segment);
   return {
-    main: NAV_ITEMS,
+    main: NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly),
     custom,
     settings: isAdmin ? [SETTINGS_NAV_ITEM] : [],
     isActive,
   };
 }
 
-function RailLink({ item, active }: { item: NavItem; active: boolean }) {
+function CountBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="bg-status-escalated text-background tabular ml-auto rounded-full px-1.5 text-[11px] leading-5 font-medium"
+      aria-label={`${count} open`}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function RailLink({
+  item,
+  active,
+  count,
+}: {
+  item: NavItem;
+  active: boolean;
+  count: number;
+}) {
   const Icon = item.icon;
   return (
     <Link
@@ -59,6 +82,7 @@ function RailLink({ item, active }: { item: NavItem; active: boolean }) {
     >
       <Icon className="size-4 shrink-0" />
       <span className="truncate">{item.label}</span>
+      {item.showsOpenEscalations && <CountBadge count={count} />}
     </Link>
   );
 }
@@ -69,7 +93,12 @@ export function SidebarNav(props: NavProps) {
   return (
     <nav aria-label="Main" className="flex flex-col gap-0.5 px-3">
       {main.map((item) => (
-        <RailLink key={item.href} item={item} active={isActive(item)} />
+        <RailLink
+          key={item.href}
+          item={item}
+          active={isActive(item)}
+          count={props.openEscalations}
+        />
       ))}
       {custom.length > 0 && (
         <>
@@ -77,14 +106,14 @@ export function SidebarNav(props: NavProps) {
             Clinic pages
           </p>
           {custom.map((item) => (
-            <RailLink key={item.href} item={item} active={isActive(item)} />
+            <RailLink key={item.href} item={item} active={isActive(item)} count={0} />
           ))}
         </>
       )}
       {settings.length > 0 && (
         <div className="mt-4">
           {settings.map((item) => (
-            <RailLink key={item.href} item={item} active={isActive(item)} />
+            <RailLink key={item.href} item={item} active={isActive(item)} count={0} />
           ))}
         </div>
       )}
@@ -118,6 +147,9 @@ export function MobileNav(props: NavProps) {
           >
             <Icon className="size-4 shrink-0" />
             {item.label}
+            {item.showsOpenEscalations && (
+              <CountBadge count={props.openEscalations} />
+            )}
           </Link>
         );
       })}

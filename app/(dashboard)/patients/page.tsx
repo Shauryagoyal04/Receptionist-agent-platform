@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireAdmin } from "@/lib/auth/session";
 import { PATIENT_PAGE_SIZE, listPatients } from "@/lib/data/clinic-records";
 
 export const metadata: Metadata = {
@@ -24,8 +24,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PatientsPage({ searchParams }: PageProps<"/patients">) {
-  const user = await getCurrentUser();
-  if (!user) return null;
+  const user = await requireAdmin();
 
   const raw = await searchParams;
   const { q } = parseFilterParams(raw);

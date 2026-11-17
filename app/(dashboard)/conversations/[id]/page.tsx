@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Headphones, TriangleAlert } from "lucide-react";
 
 import { PageShell } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Transcript } from "@/components/conversations/transcript";
 import { MetadataRail } from "@/components/conversations/metadata-rail";
 import { ReviewToggle } from "@/components/conversations/review-toggle";
+import { EscalationActions } from "@/components/escalations/escalation-actions";
+import {
+  HandBackButton,
+  LiveRefresh,
+  StaffReply,
+} from "@/components/escalations/staff-reply";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -17,6 +23,12 @@ import {
   getConversationById,
   getMessages,
 } from "@/lib/data/conversations";
+import {
+  REPLY_WINDOW_MS,
+  getActiveEscalationForConversation,
+  isWithinReplyWindow,
+} from "@/lib/data/escalations";
+import { formatInZone } from "@/lib/time";
 import {
   buildQueryString,
   parsePage,
@@ -55,10 +67,32 @@ export default async function ConversationDetailPage({
   const filters = toDataFilters(state, timeZone);
   const listQuery = buildQueryString(state, { page: parsePage(raw.page) });
 
-  const [messages, neighbors] = await Promise.all([
+  const [messages, neighbors, escalation] = await Promise.all([
     getMessages(user.clinicId, conversation.id),
     getAdjacentConversations(user.clinicId, conversation, filters),
+    conversation.externalId
+      ? getActiveEscalationForConversation(user.clinicId, conversation.externalId)
+      : Promise.resolve(null),
   ]);
+
+  // A WhatsApp chat handed to staff: the AI is silent and staff reply here.
+  const staffHandled =
+    conversation.channel === "whatsapp" && conversation.handledBy === "staff";
+  // The 24-hour window runs from the patient's last message. Older documents
+  // lack `lastPatientMessageAt`, so fall back to the transcript.
+  const lastPatientAt =
+    conversation.lastPatientMessageAt ??
+    messages.filter((message) => message.role === "patient").at(-1)?.timestamp ??
+    null;
+  const windowOpen = isWithinReplyWindow(lastPatientAt);
+  const windowClosesAt =
+    windowOpen && lastPatientAt
+      ? formatInZone(
+          new Date(Date.parse(lastPatientAt) + REPLY_WINDOW_MS).toISOString(),
+          timeZone,
+          { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" },
+        )
+      : null;
 
   return (
     <PageShell>
@@ -93,7 +127,48 @@ export default async function ConversationDetailPage({
         />
       </header>
 
-      {conversation.escalated && (
+      {staffHandled && (
+        <Card className="border-l-status-escalated mt-4 border-l-2">
+          <CardContent className="flex flex-col gap-4 py-4">
+            <LiveRefresh />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <Headphones className="text-status-escalated size-4" />
+                  With clinic staff — the AI is not replying
+                </h2>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  {conversation.escalationReason
+                    ? `Asked for a person: ${conversation.escalationReason}.`
+                    : "The patient asked for a person."}{" "}
+                  {escalation?.status === "claimed"
+                    ? `Claimed by ${escalation.claimedByName ?? "staff"}.`
+                    : "Not claimed yet — replying claims it."}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:w-56">
+                {escalation?.status === "open" && (
+                  <EscalationActions
+                    escalationId={escalation.id}
+                    status="open"
+                    conversationDocId={conversation.id}
+                    channel="whatsapp"
+                    claimOnly
+                  />
+                )}
+                <HandBackButton conversationId={conversation.id} />
+              </div>
+            </div>
+            <StaffReply
+              conversationId={conversation.id}
+              windowOpen={windowOpen}
+              windowClosesAt={windowClosesAt}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {conversation.escalated && !staffHandled && (
         <p
           role="status"
           className="text-status-escalated bg-status-escalated-tint mt-4 flex items-start gap-2 rounded-md px-3 py-2 text-sm"

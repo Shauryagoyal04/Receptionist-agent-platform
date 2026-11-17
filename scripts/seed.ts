@@ -19,6 +19,7 @@ import { ObjectId, type Document } from "mongodb";
 
 import { COLLECTIONS, getDb, getMongoClientPromise } from "@/lib/mongodb";
 import { ensureConversationIndexes } from "@/lib/data/conversations";
+import { ensureEscalationIndexes } from "@/lib/data/escalations";
 import { ensureUserIndexes } from "@/lib/data/users";
 import { getServerEnv } from "@/lib/env";
 import { deriveConversationFields, type DerivableMessage } from "@/lib/data/derive";
@@ -849,7 +850,11 @@ async function main() {
   const db = DRY_RUN ? null : await getDb();
 
   if (db && env) {
-    await Promise.all([ensureConversationIndexes(), ensureUserIndexes()]);
+    await Promise.all([
+      ensureConversationIndexes(),
+      ensureUserIndexes(),
+      ensureEscalationIndexes(),
+    ]);
     await db.collection(COLLECTIONS.clinic).updateOne(
       { clinicId },
       {

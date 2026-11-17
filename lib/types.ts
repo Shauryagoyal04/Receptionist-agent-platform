@@ -86,13 +86,36 @@ export const TOOL_NAMES = [
   "get_clinic_info",
   "list_doctors",
   "check_availability",
+  "find_next_available",
   "book_appointment",
   "list_my_appointments",
+  "reschedule_appointment",
   "cancel_appointment",
+  "verify_caller",
+  "search_catalog",
   "escalate_to_human",
 ] as const;
 export const toolNameSchema = z.enum(TOOL_NAMES);
 export type ToolName = z.infer<typeof toolNameSchema>;
+
+/** Who is answering a conversation now (docs/staff-handoff-contract.md). */
+export const HANDLED_BY = ["agent", "staff"] as const;
+export const handledBySchema = z.enum(HANDLED_BY);
+export type HandledBy = z.infer<typeof handledBySchema>;
+
+export const ESCALATION_STATUSES = ["open", "claimed", "resolved"] as const;
+export const escalationStatusSchema = z.enum(ESCALATION_STATUSES);
+export type EscalationStatus = z.infer<typeof escalationStatusSchema>;
+
+export const ESCALATION_STATUS_LABELS: Record<EscalationStatus, string> = {
+  open: "Open",
+  claimed: "Claimed",
+  resolved: "Resolved",
+};
+
+export const DELIVERY_STATUSES = ["pending", "sent", "failed"] as const;
+export const deliveryStatusSchema = z.enum(DELIVERY_STATUSES);
+export type DeliveryStatus = z.infer<typeof deliveryStatusSchema>;
 
 export const USER_ROLES = ["admin", "staff"] as const;
 export const userRoleSchema = z.enum(USER_ROLES);
@@ -150,9 +173,13 @@ export const TOOL_LABELS: Record<ToolName, string> = {
   get_clinic_info: "Clinic info",
   list_doctors: "List doctors",
   check_availability: "Check availability",
+  find_next_available: "Find next available",
   book_appointment: "Book appointment",
   list_my_appointments: "List appointments",
+  reschedule_appointment: "Reschedule appointment",
   cancel_appointment: "Cancel appointment",
+  verify_caller: "Verify caller",
+  search_catalog: "Search catalog",
   escalate_to_human: "Asked for a human",
 };
 
@@ -376,6 +403,10 @@ export const conversationSchema = z.object({
   reviewedBy: nullableString,
   reviewedAt: nullableIsoDate,
   staffNote: nullableString,
+  /** Missing on older documents, which the agent always handled. */
+  handledBy: handledBySchema.nullish().transform((value) => value ?? "agent"),
+  escalationId: nullableString,
+  lastPatientMessageAt: nullableIsoDate,
 });
 export type Conversation = z.infer<typeof conversationSchema>;
 
@@ -407,8 +438,43 @@ export const messageSchema = z.object({
     .nullish()
     .transform((value) => value ?? null),
   tool: toolInvocationSchema.nullish().transform((value) => value ?? null),
+  /** Staff replies only (docs/staff-handoff-contract.md). */
+  clientId: nullableString,
+  staff: z
+    .object({ userId: z.string(), name: z.string() })
+    .nullish()
+    .transform((value) => value ?? null),
+  delivery: z
+    .object({
+      status: deliveryStatusSchema,
+      error: nullableString,
+      at: nullableIsoDate,
+    })
+    .nullish()
+    .transform((value) => value ?? null),
 });
 export type Message = z.infer<typeof messageSchema>;
+
+export const escalationSchema = z.object({
+  id: z.string(),
+  clinicId: z.string(),
+  conversationId: nullableString,
+  channel: channelSchema,
+  patientPhone: z.string(),
+  patientName: z.string().nullish().transform((value) => value ?? ""),
+  reason: z.string().nullish().transform((value) => value ?? ""),
+  status: escalationStatusSchema,
+  createdAt: isoDate,
+  updatedAt: nullableIsoDate,
+  claimedBy: nullableString,
+  claimedByName: nullableString,
+  claimedAt: nullableIsoDate,
+  resolvedBy: nullableString,
+  resolvedByName: nullableString,
+  resolvedAt: nullableIsoDate,
+  resolutionNote: nullableString,
+});
+export type Escalation = z.infer<typeof escalationSchema>;
 
 /** Confidence at or below this reads as "the agent was guessing". */
 export const LOW_CONFIDENCE_THRESHOLD = 0.7;

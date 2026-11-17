@@ -204,6 +204,18 @@ The console validates every write against the definition (zod schema built from 
   - `search_catalog(catalog, query)` searches an `agentEnabled` custom page by text across its agent-visible fields and returns at most 10 active rows.
 - **Lenient reading:** a record whose values don't match the definition (wrong type, unknown option) is skipped for that field and logged, never shown half-broken and never allowed to fail the patient's turn.
 
+### 6.1 Staff page: human handoff alerts
+
+One custom page has a fixed meaning to the agent: `entityType: "staff"`. When a patient asks to talk to a person, the agent WhatsApps every **active** staff row whose attributes have:
+
+| Key | Type | Meaning |
+|---|---|---|
+| `name` | `text` | used in the greeting ("Hi Anita") |
+| `phone` | `phone` | WhatsApp number with country code (a bare 10-digit number is read as Indian) |
+| `receivesEscalations` | `boolean` | `true` = send this person handoff alerts |
+
+The agent reads these keys directly, not through `agentVisible`, so keep `phone` marked `pii` and the page `agentEnabled: false`; patients never see staff numbers. Don't rename these keys; other fields on the page are free. Archiving the definition turns alerts off.
+
 ---
 
 ## 7. What breaks if this contract is broken

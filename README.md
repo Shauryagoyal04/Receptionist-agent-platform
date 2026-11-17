@@ -13,7 +13,7 @@ WhatsApp only, and **no human handoff** — nobody is notified when a patient as
 | Flag | Default | Effect when off |
 | --- | --- | --- |
 | `ENABLED_CHANNELS` | `whatsapp` | The channel column, channel filter and Channels chart are hidden — with one channel they are the same value on every row. |
-| `HUMAN_HANDOFF_ENABLED` | `false` | "Escalated" reads as **"Asked for a human"**, the escalations card becomes an **Awaiting follow-up** queue, and the "Resolved without a human" KPI is hidden because it is pinned at 100% by definition. |
+| `HUMAN_HANDOFF_ENABLED` | `true` | (On: staff work the **Escalations** page and reply to WhatsApp chats from the console, see docs/staff-handoff-contract.md.) "Escalated" reads as **"Asked for a human"**, the escalations card becomes an **Awaiting follow-up** queue, and the "Resolved without a human" KPI is hidden because it is pinned at 100% by definition. |
 
 The headline KPI is **booking completion rate** — of conversations where the patient was trying to get an appointment, the share that ended with one booked. It stays meaningful whether or not a handoff process exists.
 
