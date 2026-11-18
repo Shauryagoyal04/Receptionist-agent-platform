@@ -1,19 +1,27 @@
 import {
   Building2,
   ChartNoAxesColumn,
-  Database,
-  Headphones,
+  FileText,
+  FlaskConical,
+  HandCoins,
+  Headset,
+  IdCard,
   MessagesSquare,
+  ReceiptIndianRupee,
   Settings2,
   Stethoscope,
   UserCog,
-  Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
 /**
  * The console's destinations, defined once so the desktop rail and the
  * mobile tab bar cannot drift apart.
+ *
+ * Grouped by the job staff come to do: watch the agent and step in (the
+ * desk), keep what it tells patients correct, and run the console. Every
+ * item has its own icon, so nothing is told apart by its label alone.
  *
  * `segments` is the route below the dashboard layout, as
  * `useSelectedLayoutSegments()` returns it; an item is active when the
@@ -34,7 +42,9 @@ export type NavItem = {
   badge?: NavBadge;
 };
 
-export const NAV_ITEMS: readonly NavItem[] = [
+export type NavGroupId = "desk" | "knowledge" | "admin";
+
+export const DESK_ITEMS: readonly NavItem[] = [
   {
     href: "/analytics",
     segments: ["analytics"],
@@ -53,10 +63,22 @@ export const NAV_ITEMS: readonly NavItem[] = [
     href: "/escalations",
     segments: ["escalations"],
     label: "Escalations",
-    icon: Headphones,
+    icon: Headset,
     description: "Patients who asked for a person",
     badge: "openEscalations",
   },
+  {
+    href: "/patients",
+    segments: ["patients"],
+    label: "Patients",
+    icon: UsersRound,
+    description: "People who have contacted the clinic",
+    adminOnly: true,
+  },
+];
+
+/** What the agent reads to patients. Custom pages are appended to these. */
+export const KNOWLEDGE_ITEMS: readonly NavItem[] = [
   {
     href: "/clinic",
     segments: ["clinic"],
@@ -73,37 +95,50 @@ export const NAV_ITEMS: readonly NavItem[] = [
     description: "Who patients can book, and when",
     adminOnly: true,
   },
+];
+
+export const ADMIN_ITEMS: readonly NavItem[] = [
   {
-    href: "/patients",
-    segments: ["patients"],
-    label: "Patients",
-    icon: Users,
-    description: "People who have contacted the clinic",
+    href: "/team",
+    segments: ["team"],
+    label: "Team",
+    icon: UserCog,
+    description: "Who can sign in, and what they can see",
+    badge: "pendingUsers",
+    adminOnly: true,
+  },
+  {
+    href: "/settings/data",
+    segments: ["settings", "data"],
+    label: "Data settings",
+    icon: Settings2,
+    description: "Pages and fields the clinic keeps",
     adminOnly: true,
   },
 ];
 
-/** Admin-only: accounts and their roles. */
-export const TEAM_NAV_ITEM: NavItem = {
-  href: "/team",
-  segments: ["team"],
-  label: "Team",
-  icon: UserCog,
-  description: "Who can sign in, and what they can see",
-  badge: "pendingUsers",
+export const NAV_GROUP_LABELS: Record<NavGroupId, string | null> = {
+  desk: null,
+  knowledge: "What the agent knows",
+  admin: "Admin",
 };
-
-/** Admin-only: page and field definitions. */
-export const SETTINGS_NAV_ITEM: NavItem = {
-  href: "/settings/data",
-  segments: ["settings", "data"],
-  label: "Data settings",
-  icon: Settings2,
-  description: "Pages and fields the clinic keeps",
-};
-
-/** Icon for clinic-defined pages, which are listed after the fixed items. */
-export const CUSTOM_PAGE_ICON = Database;
 
 /** Serializable form of a custom page, passed from the layout (admins only). */
 export type CustomNavPage = { entityType: string; label: string };
+
+/*
+ * Custom pages are named by the clinic, so their icon is picked from what the
+ * name says. Reusing one generic icon for Services, Staff and Schemes would
+ * make three different pages look like the same thing.
+ */
+const CUSTOM_ICON_RULES: Array<{ pattern: RegExp; icon: LucideIcon }> = [
+  { pattern: /scheme|subsid|insur|ayushman|cghs|pmjay|concession/i, icon: HandCoins },
+  { pattern: /service|charge|fee|price|tariff|rate|package/i, icon: ReceiptIndianRupee },
+  { pattern: /staff|nurse|employee|reception|team member/i, icon: IdCard },
+  { pattern: /lab|test|diagnos|report|scan|patholog/i, icon: FlaskConical },
+];
+
+export function customPageIcon(page: CustomNavPage): LucideIcon {
+  const text = `${page.entityType} ${page.label}`;
+  return CUSTOM_ICON_RULES.find((rule) => rule.pattern.test(text))?.icon ?? FileText;
+}

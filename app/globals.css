@@ -48,38 +48,39 @@
 }
 
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
+    /* Mapped onto the Medi Desk tokens defined at the end of this file. */
+    --background: var(--bg-app);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface);
+    --popover-foreground: var(--ink);
+    --primary: var(--agent);
+    --primary-foreground: #ffffff;
+    --secondary: var(--bg-sunken);
+    --secondary-foreground: var(--ink);
+    --muted: var(--bg-sunken);
+    --muted-foreground: var(--ink-3);
+    --accent: var(--bg-sunken);
+    --accent-foreground: var(--ink);
+    --destructive: var(--danger);
+    --border: var(--line);
+    --input: var(--line-strong);
+    --ring: var(--focus);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: var(--surface);
+    --sidebar-foreground: var(--ink-2);
+    --sidebar-primary: var(--agent);
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: var(--bg-sunken);
+    --sidebar-accent-foreground: var(--ink);
+    --sidebar-border: var(--line);
+    --sidebar-ring: var(--focus);
 }
 
 .dark {
@@ -221,4 +222,282 @@
     font-family: var(--font-sans);
     fill: var(--color-muted-foreground);
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Medi Desk design tokens.
+ *
+ * Every colour here maps to one meaning, and that meaning holds on every
+ * page: petrol is the agent, green WhatsApp, indigo voice, amber the human
+ * side, and each outcome has a fixed hue. Each meaning has a `solid` (lines,
+ * dots, icons, thin bars), a `soft` (badge and icon-well backgrounds) and a
+ * `text` (text on the soft background, 4.5:1). Components reference these
+ * names, never a hex value, so the meaning travels with the colour.
+ * ------------------------------------------------------------------------ */
+
+:root {
+  --bg-app: #f5f7f6;
+  --bg-sunken: #eef2f0;
+  --surface: #ffffff;
+  --surface-hover: #fafbfb;
+
+  --ink: #17262a;
+  --ink-2: #45565a;
+  --ink-3: #6e7e81;
+  --ink-4: #9aa7a9;
+
+  --line: #e1e7e5;
+  --line-strong: #cbd4d2;
+  --focus: #0f6e73;
+
+  --agent: #0f6e73;        --agent-soft: #e3f2f1;        --agent-text: #0b4f53;
+  --whatsapp: #1e9e6a;     --whatsapp-soft: #e2f5ec;     --whatsapp-text: #13704a;
+  --voice: #5b4fd6;        --voice-soft: #eceafc;        --voice-text: #3f33b0;
+  --human: #d98a0b;        --human-soft: #fdf1dc;        --human-text: #8a5300;
+  --booked: #2e8b57;       --booked-soft: #e4f3ea;       --booked-text: #1d6340;
+  --rescheduled: #2f74c0;  --rescheduled-soft: #e4effa;  --rescheduled-text: #1f558f;
+  --cancelled: #b0476b;    --cancelled-soft: #f8e6ec;    --cancelled-text: #86304f;
+  --answered: #1a8fa0;     --answered-soft: #e1f3f5;     --answered-text: #126a77;
+  --none: #a3aeb0;         --none-soft: #eef1f1;         --none-text: #55666a;
+  --danger: #c8402e;       --danger-soft: #fbe7e3;       --danger-text: #93281a;
+  --up: var(--booked);     --up-soft: var(--booked-soft);   --up-text: var(--booked-text);
+  --down: var(--danger);   --down-soft: var(--danger-soft); --down-text: var(--danger-text);
+
+  /* Intent categories, in a fixed order so charts stay consistent. */
+  --intent-1: #0f6e73;
+  --intent-2: #5b4fd6;
+  --intent-3: #1e9e6a;
+  --intent-4: #d98a0b;
+  --intent-5: #2f74c0;
+  --intent-6: #b0476b;
+  --intent-7: #1a8fa0;
+  --intent-8: #7c8b3a;
+  --intent-other: #a3aeb0;
+
+  --shadow-hover: 0 6px 20px -8px rgba(23, 38, 42, 0.18);
+  --shadow-pop: 0 12px 32px -8px rgba(23, 38, 42, 0.24);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-quick: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 600ms;
+}
+
+/* Night-shift desks: surfaces swap, solids stay, softs become a 16% wash. */
+.dark {
+  --bg-app: #0f1719;
+  --bg-sunken: #1b282c;
+  --surface: #162125;
+  --surface-hover: #1a272b;
+  --ink: #e8eeee;
+  --ink-2: #b5c2c4;
+  --ink-3: #87979a;
+  --ink-4: #66777a;
+  --line: #26343a;
+  --line-strong: #34454b;
+  --focus: #3aa7ad;
+
+  --agent-soft: color-mix(in srgb, var(--agent) 16%, transparent);
+  --whatsapp-soft: color-mix(in srgb, var(--whatsapp) 16%, transparent);
+  --voice-soft: color-mix(in srgb, var(--voice) 16%, transparent);
+  --human-soft: color-mix(in srgb, var(--human) 16%, transparent);
+  --booked-soft: color-mix(in srgb, var(--booked) 16%, transparent);
+  --rescheduled-soft: color-mix(in srgb, var(--rescheduled) 16%, transparent);
+  --cancelled-soft: color-mix(in srgb, var(--cancelled) 16%, transparent);
+  --answered-soft: color-mix(in srgb, var(--answered) 16%, transparent);
+  --none-soft: color-mix(in srgb, var(--none) 16%, transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) 16%, transparent);
+
+  --agent-text: color-mix(in srgb, var(--agent) 75%, white);
+  --whatsapp-text: color-mix(in srgb, var(--whatsapp) 75%, white);
+  --voice-text: color-mix(in srgb, var(--voice) 75%, white);
+  --human-text: color-mix(in srgb, var(--human) 75%, white);
+  --booked-text: color-mix(in srgb, var(--booked) 75%, white);
+  --rescheduled-text: color-mix(in srgb, var(--rescheduled) 75%, white);
+  --cancelled-text: color-mix(in srgb, var(--cancelled) 75%, white);
+  --answered-text: color-mix(in srgb, var(--answered) 75%, white);
+  --none-text: color-mix(in srgb, var(--none) 75%, white);
+  --danger-text: color-mix(in srgb, var(--danger) 75%, white);
+
+  --background: var(--bg-app);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --muted: var(--bg-sunken);
+  --muted-foreground: var(--ink-3);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --primary: var(--agent);
+  --primary-foreground: #ffffff;
+  --ring: var(--focus);
+  --sidebar: var(--surface);
+  --sidebar-border: var(--line);
+}
+
+@theme inline {
+  --color-app: var(--bg-app);
+  --color-sunken: var(--bg-sunken);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-agent: var(--agent);
+  --color-agent-soft: var(--agent-soft);
+  --color-agent-text: var(--agent-text);
+  --color-whatsapp: var(--whatsapp);
+  --color-whatsapp-soft: var(--whatsapp-soft);
+  --color-whatsapp-text: var(--whatsapp-text);
+  --color-voice: var(--voice);
+  --color-voice-soft: var(--voice-soft);
+  --color-voice-text: var(--voice-text);
+  --color-human: var(--human);
+  --color-human-soft: var(--human-soft);
+  --color-human-text: var(--human-text);
+  --color-booked: var(--booked);
+  --color-booked-soft: var(--booked-soft);
+  --color-booked-text: var(--booked-text);
+  --color-rescheduled: var(--rescheduled);
+  --color-rescheduled-soft: var(--rescheduled-soft);
+  --color-rescheduled-text: var(--rescheduled-text);
+  --color-cancelled: var(--cancelled);
+  --color-cancelled-soft: var(--cancelled-soft);
+  --color-cancelled-text: var(--cancelled-text);
+  --color-answered: var(--answered);
+  --color-answered-soft: var(--answered-soft);
+  --color-answered-text: var(--answered-text);
+  --color-none: var(--none);
+  --color-none-soft: var(--none-soft);
+  --color-none-text: var(--none-text);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-text: var(--danger-text);
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-up-text: var(--up-text);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-down-text: var(--down-text);
+
+  --shadow-hover: var(--shadow-hover);
+  --shadow-pop: var(--shadow-pop);
+  --ease-out-soft: var(--ease-out);
+}
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Motion. Each animation has a job: arrive (data loaded), change, confirm or
+ * live. The reduced-motion rule earlier in this file collapses them all.
+ * ------------------------------------------------------------------------ */
+
+@keyframes md-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Lines draw left to right. Paths set `pathLength="1"`. */
+@keyframes md-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Bars grow from their baseline. */
+@keyframes md-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes md-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The only infinite animation on screen: the agent's "live" pulse. */
+@keyframes md-pulse-ring {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* A single small bounce when a count goes up (e.g. a new escalation). */
+@keyframes md-bounce {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  70% { transform: scale(0.95); }
+}
+
+@layer utilities {
+  .md-bounce {
+    animation: md-bounce 420ms var(--ease-out) 1;
+  }
+
+  .md-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--bg-sunken) 0%,
+      color-mix(in srgb, var(--bg-sunken) 40%, var(--surface)) 50%,
+      var(--bg-sunken) 100%
+    );
+    background-size: 200% 100%;
+    animation: md-shimmer 1.4s linear infinite;
+  }
+
+  .md-draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: md-draw var(--dur-slow) var(--ease-out) forwards;
+  }
+
+  .md-grow-x {
+    transform-origin: left center;
+    animation: md-grow-x var(--dur-slow) var(--ease-out) both;
+  }
+
+  .md-fade {
+    animation: md-fade var(--dur-base) var(--ease-out) both;
+  }
+
+  .md-pulse::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: currentColor;
+    animation: md-pulse-ring 2s var(--ease-out) infinite;
+  }
+
+  .tnum {
+    font-feature-settings: "tnum" 1;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * The older status tokens, still read by a few components through the tone
+ * maps in `lib/types.ts`, now resolve to the meaning colours. The solids are
+ * mapped to the `text` shade because those tokens are mostly used as text
+ * on their own tint.
+ */
+:root,
+.dark {
+  --status-booked: var(--booked-text);
+  --status-booked-tint: var(--booked-soft);
+  --status-escalated: var(--human-text);
+  --status-escalated-tint: var(--human-soft);
+  --status-abandoned: var(--none-text);
+  --status-abandoned-tint: var(--none-soft);
+  --status-info: var(--answered-text);
+  --status-info-tint: var(--answered-soft);
 }

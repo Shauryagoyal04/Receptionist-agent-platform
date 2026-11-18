@@ -267,26 +267,86 @@ export const SENTIMENT_TONE: Record<Sentiment, SemanticTone> = {
 };
 
 /**
- * Distinct segment colors for the outcome bar. Outcomes that share a tone
- * (booked and rescheduled are both "booked") still need to be tellable apart
- * inside a single stacked bar, so each gets its own shade of the tone.
+ * The meaning colours from the design tokens (`app/globals.css`). Each name
+ * resolves to `--{name}` (solid), `--{name}-soft` and `--{name}-text`, so a
+ * booking is the same green in a KPI tile, a chart, a badge and a tag.
  */
+export type Meaning =
+  | "agent"
+  | "whatsapp"
+  | "voice"
+  | "human"
+  | "booked"
+  | "rescheduled"
+  | "cancelled"
+  | "answered"
+  | "none"
+  | "danger";
+
+export function meaningVar(
+  meaning: Meaning,
+  variant: "solid" | "soft" | "text" = "solid",
+): string {
+  return variant === "solid" ? `var(--${meaning})` : `var(--${meaning}-${variant})`;
+}
+
+/** Outcome colours are fixed. "No resolution" is grey: the absence of one. */
+export const OUTCOME_MEANING: Record<Outcome, Meaning> = {
+  appointment_booked: "booked",
+  appointment_rescheduled: "rescheduled",
+  appointment_cancelled: "cancelled",
+  info_provided: "answered",
+  escalated: "human",
+  no_resolution: "none",
+};
+
 export const OUTCOME_CHART_COLOR: Record<Outcome, string> = {
-  appointment_booked: "var(--status-booked)",
-  appointment_rescheduled:
-    "color-mix(in oklab, var(--status-booked) 55%, var(--background))",
-  appointment_cancelled:
-    "color-mix(in oklab, var(--status-abandoned) 55%, var(--background))",
-  info_provided:
-    "color-mix(in oklab, var(--status-info) 60%, var(--background))",
-  escalated: "var(--status-escalated)",
-  no_resolution: "var(--status-abandoned)",
+  appointment_booked: "var(--booked)",
+  appointment_rescheduled: "var(--rescheduled)",
+  appointment_cancelled: "var(--cancelled)",
+  info_provided: "var(--answered)",
+  escalated: "var(--human)",
+  no_resolution: "var(--none)",
+};
+
+/** Conversation status colours: live is the agent, escalated the human side. */
+export const STATUS_MEANING: Record<ConversationStatus, Meaning> = {
+  active: "agent",
+  completed: "answered",
+  escalated: "human",
+  abandoned: "none",
+};
+
+/** Mood: neutral is grey, not a colour, because it says nothing either way. */
+export const SENTIMENT_MEANING: Record<Sentiment, Meaning> = {
+  positive: "booked",
+  neutral: "none",
+  negative: "danger",
+};
+
+/** WhatsApp is green, voice indigo; web chat is the agent's own widget. */
+export const CHANNEL_MEANING: Record<Channel, Meaning> = {
+  web_chat: "agent",
+  voice: "voice",
+  whatsapp: "whatsapp",
 };
 
 export const CHANNEL_CHART_COLOR: Record<Channel, string> = {
-  web_chat: "var(--status-booked)",
-  voice: "var(--foreground)",
-  whatsapp: "color-mix(in oklab, var(--status-booked) 55%, var(--background))",
+  web_chat: "var(--agent)",
+  voice: "var(--voice)",
+  whatsapp: "var(--whatsapp)",
+};
+
+/** Ordered categorical set for intents. "Other" is always last and grey. */
+export const INTENT_CHART_COLOR: Record<IntentId, string> = {
+  book_appointment: "var(--intent-1)",
+  doctor_availability: "var(--intent-2)",
+  reschedule_appointment: "var(--intent-5)",
+  cancel_appointment: "var(--intent-6)",
+  clinic_info: "var(--intent-3)",
+  consultation_fees: "var(--intent-4)",
+  report_status: "var(--intent-7)",
+  other: "var(--intent-other)",
 };
 
 /* ------------------------------------------------------------------ */

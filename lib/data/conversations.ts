@@ -291,6 +291,45 @@ export async function clinicHasAnyConversations(
   return count > 0;
 }
 
+/**
+ * When the newest conversation on each channel started (null for a channel
+ * with none). Feeds the agent status in the sidebar, so it runs on every
+ * page load and must stay cheap: each lookup is one indexed `findOne` on
+ * `{ clinicId, channel, startedAt }`.
+ *
+ * Per channel because WhatsApp and voice are separate agents: one can be
+ * busy while the other has never taken a chat, and a single "latest" would
+ * hide that.
+ *
+ * `startedAt` is a Date on some documents and an ISO string on others, and
+ * MongoDB sorts by type before value, so each channel is looked up once per
+ * type and the later of the two wins.
+ */
+export async function getLatestConversationByChannel(
+  clinicId: string,
+): Promise<Record<Channel, string | null>> {
+  const conversations = await collection();
+  const newest = (channel: Channel, type: "date" | "string") =>
+    conversations.findOne(
+      { clinicId, channel, startedAt: { $type: type } },
+      { sort: { startedAt: -1 }, projection: { startedAt: 1 } },
+    );
+  const channels: Channel[] = ["whatsapp", "voice", "web_chat"];
+  const entries = await Promise.all(
+    channels.map(async (channel) => {
+      const [asDate, asString] = await Promise.all([
+        newest(channel, "date"),
+        newest(channel, "string"),
+      ]);
+      const times = [asDate?.startedAt, asString?.startedAt]
+        .map((value) => (value ? new Date(value as string | Date).getTime() : NaN))
+        .filter((time) => !Number.isNaN(time));
+      return [channel, times.length > 0 ? new Date(Math.max(...times)).toISOString() : null] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as Record<Channel, string | null>;
+}
+
 export async function getConversationById(
   clinicId: string,
   id: string,

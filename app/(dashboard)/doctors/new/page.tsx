@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { PageHeader, PageShell } from "@/components/page-header";
+import { BackLink } from "@/components/clinic-data/back-link";
 import { DoctorForm } from "@/components/clinic-data/record-forms";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDefinition } from "@/lib/data/definitions";
@@ -12,8 +13,12 @@ export default async function NewDoctorPage() {
   const definition = await getDefinition(user.clinicId, "doctor");
 
   return (
-    <PageShell className="max-w-4xl">
-      <PageHeader title="Add doctor" />
+    <PageShell>
+      <BackLink href="/doctors">Doctors</BackLink>
+      <PageHeader
+        title="Add doctor"
+        description="Once saved, the agent can offer this doctor's slots to patients."
+      />
       <div className="mt-6">
         <DoctorForm
           fields={definition?.fields ?? []}

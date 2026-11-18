@@ -33,12 +33,13 @@ export function Pagination({
   return (
     <nav
       aria-label="Pagination"
-      className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3"
+      className="border-line flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3"
     >
-      <p className="text-muted-foreground text-xs">
-        <span className="tabular font-medium">{rangeStart}</span>–
-        <span className="tabular font-medium">{rangeEnd}</span> of{" "}
-        <span className="tabular font-medium">{total.toLocaleString("en-IN")}</span>
+      <p className="text-ink-3 tnum text-[13px]">
+        Showing <span className="text-ink font-medium">{rangeStart.toLocaleString("en-IN")}</span>–
+        <span className="text-ink font-medium">{rangeEnd.toLocaleString("en-IN")}</span> of{" "}
+        <span className="text-ink font-medium">{total.toLocaleString("en-IN")}</span>{" "}
+        {total === 1 ? "conversation" : "conversations"}
       </p>
 
       {pageCount > 1 && (
@@ -55,7 +56,7 @@ export function Pagination({
               <span
                 key={`gap-${index}`}
                 aria-hidden="true"
-                className="text-muted-foreground px-1 text-xs"
+                className="text-ink-4 px-1 text-xs"
               >
                 …
               </span>
@@ -65,7 +66,7 @@ export function Pagination({
                 asChild={entry !== page}
                 size="sm"
                 variant={entry === page ? "secondary" : "ghost"}
-                className="tabular h-8 min-w-8 px-2 font-mono text-xs"
+                className={`tnum h-8 min-w-8 px-2 text-[13px] ${entry === page ? "bg-agent-soft text-agent-text disabled:opacity-100" : ""}`}
                 aria-current={entry === page ? "page" : undefined}
                 disabled={entry === page}
               >

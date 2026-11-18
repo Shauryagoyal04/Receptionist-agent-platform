@@ -31,6 +31,35 @@ export type DayBucket = {
   total: number;
   escalated: number;
   negative: number;
+  booked: number;
+  /** Per channel, so the volume chart can stack them in channel colours. */
+  whatsapp: number;
+  voice: number;
+  web_chat: number;
+  /** Median handling time that day; 0 on a day with no conversations. */
+  medianDurationSec: number;
+};
+
+/**
+ * Where booking attempts drop off. Each step is a subset of the one before:
+ * the patient wanted an appointment, the agent looked up open slots, and the
+ * conversation ended with an appointment booked.
+ */
+export type BookingFunnel = {
+  wanted: number;
+  checkedSlots: number;
+  booked: number;
+};
+
+export type RecentConversationRow = {
+  id: string;
+  patientName: string;
+  patientPhone: string;
+  channel: Channel;
+  preview: string;
+  outcome: Outcome;
+  startedAt: string;
+  day: string;
 };
 
 export type CountShare<T> = {
@@ -72,6 +101,9 @@ export type AnalyticsSummary = {
   bookingCompletionRate: number;
   /** Denominator of the above — conversations that set out to book. */
   bookingIntentTotal: number;
+  /** Numerator: booking attempts that ended in a booking. */
+  bookingsFromIntent: number;
+  bookingFunnel: BookingFunnel;
   medianDurationSec: number;
   avgMessagesPerConversation: number;
   byOutcome: CountShare<Outcome>[];
@@ -83,8 +115,12 @@ export type AnalyticsSummary = {
   /** 24 entries, indexed by hour on the clinic's wall clock. */
   hours: number[];
   recentEscalations: EscalationRow[];
+  /** The five newest conversations in the range, newest first. */
+  recentConversations: RecentConversationRow[];
   toolReliability: ToolReliabilityRow[];
 };
+
+const SLOT_TOOLS = ["check_availability", "find_next_available", "book_appointment"];
 
 function tally<T extends string>(
   conversations: Conversation[],
@@ -130,8 +166,20 @@ export function aggregate(
   // Every day in the range is seeded at zero first. A chart that silently
   // skips quiet days compresses the x-axis and makes a gap look like a dip.
   const days = new Map<string, DayBucket>();
+  const durationsByDay = new Map<string, number[]>();
   for (let day = from; day <= to; day = addDaysToDateKey(day, 1)) {
-    days.set(day, { day, total: 0, escalated: 0, negative: 0 });
+    days.set(day, {
+      day,
+      total: 0,
+      escalated: 0,
+      negative: 0,
+      booked: 0,
+      whatsapp: 0,
+      voice: 0,
+      web_chat: 0,
+      medianDurationSec: 0,
+    });
+    durationsByDay.set(day, []);
   }
 
   const hours = Array.from({ length: 24 }, () => 0);
@@ -143,9 +191,38 @@ export function aggregate(
       bucket.total += 1;
       if (conversation.escalated) bucket.escalated += 1;
       if (conversation.sentiment === "negative") bucket.negative += 1;
+      if (conversation.outcome === "appointment_booked") bucket.booked += 1;
+      bucket[conversation.channel] += 1;
+      durationsByDay.get(day)?.push(conversation.durationSec);
     }
     hours[zonedHour(conversation.startedAt, timeZone)] += 1;
   }
+
+  for (const bucket of days.values()) {
+    bucket.medianDurationSec = median(durationsByDay.get(bucket.day) ?? []);
+  }
+
+  // "Checked slots" counts a booking attempt where the agent looked up
+  // availability, or went straight to booking (which implies a slot).
+  const checkedSlots = bookingIntents.filter(
+    (c) =>
+      c.outcome === "appointment_booked" ||
+      SLOT_TOOLS.some((tool) => (c.toolStats[tool]?.calls ?? 0) > 0),
+  ).length;
+
+  const recentConversations = [...conversations]
+    .sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))
+    .slice(0, 5)
+    .map((c) => ({
+      id: c.id,
+      patientName: c.patient.name,
+      patientPhone: c.patient.phone,
+      channel: c.channel,
+      preview: c.lastMessagePreview || c.summary,
+      outcome: c.outcome,
+      startedAt: c.startedAt,
+      day: zonedDayKey(c.startedAt, timeZone),
+    }));
 
   const recentEscalations = conversations
     .filter((c) => c.escalated)
@@ -167,6 +244,12 @@ export function aggregate(
     bookingCompletionRate:
       bookingIntentTotal > 0 ? bookingsFromIntent / bookingIntentTotal : 0,
     bookingIntentTotal,
+    bookingsFromIntent,
+    bookingFunnel: {
+      wanted: bookingIntentTotal,
+      checkedSlots,
+      booked: bookingsFromIntent,
+    },
     medianDurationSec: median(conversations.map((c) => c.durationSec)),
     avgMessagesPerConversation:
       total > 0
@@ -179,6 +262,7 @@ export function aggregate(
     days: [...days.values()],
     hours,
     recentEscalations,
+    recentConversations,
     toolReliability: aggregateToolReliability(conversations),
   };
 }

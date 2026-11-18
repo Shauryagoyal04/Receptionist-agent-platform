@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import { TriangleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Check, Copy, RotateCw, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -9,8 +10,9 @@ import { Button } from "@/components/ui/button";
  * Error boundary for the dashboard.
  *
  * In Next.js 16 the recovery callback is named `retry` (it was `reset` in 15).
- * The message says what broke and what to try, per the states requirement in
- * §3 — a bare "Something went wrong" leaves a receptionist with no next step.
+ * Staff get what broke and what to try, never a raw error: the message and
+ * digest are logged, and "Copy details" puts them on the clipboard for
+ * whoever supports the console.
  */
 export default function DashboardError({
   error,
@@ -24,44 +26,61 @@ export default function DashboardError({
   }, [error]);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-6 py-16">
-      <div className="flex flex-col items-start gap-4">
-        <span className="bg-status-escalated-tint text-status-escalated flex size-10 items-center justify-center rounded-md">
-          <TriangleAlert className="size-5" />
+    <main className="w-full max-w-[1280px] px-4 py-10 sm:px-8 sm:py-16">
+      <div className="bg-surface border-line flex max-w-xl flex-col items-start gap-5 rounded-2xl border p-6 sm:p-8">
+        <span className="bg-danger-soft text-danger flex size-11 items-center justify-center rounded-[10px]">
+          <TriangleAlert className="size-5" aria-hidden="true" />
         </span>
 
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            This page couldn&apos;t load
-          </h1>
-          <p className="text-muted-foreground mt-1.5 text-sm">
-            The console reached the database but the request didn&apos;t come
-            back cleanly. This is usually a dropped connection, or an IP that
-            is no longer on the Atlas access list.
+          <h1 className="text-ink text-2xl leading-8 font-semibold">This page couldn&apos;t load</h1>
+          <p className="text-ink-2 mt-2 text-[15px] leading-[22px]">
+            The console couldn&apos;t get this page&apos;s data just now. Trying again usually fixes
+            it. The rest of the console still works.
           </p>
         </div>
 
-        <div className="bg-muted/50 w-full rounded-md border p-3">
-          <p className="font-mono text-xs break-words">{error.message}</p>
-          {error.digest && (
-            <p className="text-muted-foreground mt-1.5 font-mono text-xs">
-              digest: {error.digest}
-            </p>
-          )}
-        </div>
-
         <div className="flex flex-wrap gap-2">
-          <Button onClick={retry}>Try again</Button>
-          <Button variant="outline" asChild>
-            <a href="/analytics">Back to analytics</a>
+          <Button onClick={retry}>
+            <RotateCw />
+            Try again
           </Button>
+          <Button variant="outline" asChild>
+            <Link href="/analytics">Go to Analytics</Link>
+          </Button>
+          <CopyDetails error={error} />
         </div>
 
-        <p className="text-muted-foreground text-xs">
-          If this keeps happening, check the server logs, and confirm the
-          indexes exist by running <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">npm run db:setup</code>.
+        <p className="text-ink-3 text-[13px]">
+          If it keeps happening, send the copied details to whoever looks after the console.
         </p>
       </div>
     </main>
+  );
+}
+
+function CopyDetails({ error }: { error: Error & { digest?: string } }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        const details = [
+          `Page: ${window.location.pathname}`,
+          `Time: ${new Date().toISOString()}`,
+          `Message: ${error.message}`,
+          error.digest ? `Digest: ${error.digest}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        void navigator.clipboard?.writeText(details).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        });
+      }}
+    >
+      {copied ? <Check className="text-booked" /> : <Copy />}
+      {copied ? "Copied" : "Copy details"}
+    </Button>
   );
 }

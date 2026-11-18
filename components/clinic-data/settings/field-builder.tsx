@@ -7,20 +7,24 @@ import {
   ArchiveRestore,
   ArrowDown,
   ArrowUp,
+  ChevronRight,
+  ListPlus,
   Loader2,
+  Lock,
   Pencil,
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { FormField, SaveBar } from "@/components/clinic-data/form-bits";
+import { FormField } from "@/components/clinic-data/form-bits";
+import { RegionEmpty } from "@/components/analytics/panel";
+import { FIELD_TYPE_ICON } from "@/components/clinic-data/settings/page-visuals";
+import { cn } from "@/lib/utils";
 import {
   addField,
   moveField,
@@ -121,7 +125,7 @@ function FieldEditor({
 
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit({
@@ -132,10 +136,14 @@ function FieldEditor({
         });
       }}
     >
-      <div className="grid gap-4 sm:grid-cols-3">
-        <FormField id={`${idp}-label`} label="Label" required error={errors.label}>
+      <p className="text-ink text-[15px] font-semibold">
+        {mode === "add" ? "New field" : `Edit ${initial.label}`}
+      </p>
+      <div className="grid gap-5 sm:grid-cols-3">
+        <FormField id={`${idp}-label`} label="Label" required error={errors.label} hint="What staff see next to the input.">
           <Input
             id={`${idp}-label`}
+            className="h-11"
             value={field.label}
             placeholder="Fasting required"
             onChange={(e) => {
@@ -160,7 +168,7 @@ function FieldEditor({
             value={field.key}
             readOnly={mode === "edit"}
             disabled={mode === "edit"}
-            className="font-mono"
+            className="h-11 font-mono"
             onChange={(e) => {
               setKeyTouched(true);
               setField((f) => ({ ...f, key: e.target.value }));
@@ -176,6 +184,7 @@ function FieldEditor({
         >
           <NativeSelect
             id={`${idp}-type`}
+            className="[&_select]:h-11"
             value={field.type}
             disabled={mode === "edit"}
             onChange={(e) => setField((f) => ({ ...f, type: e.target.value as FieldType }))}
@@ -211,27 +220,31 @@ function FieldEditor({
           id={`${idp}-description`}
           label="Help text"
           error={errors.description}
-          hint="Shown under the input. Optional."
+          hint="Shown under the input to whoever fills it in."
           className="sm:col-span-3"
         >
           <Input
             id={`${idp}-description`}
+            className="h-11"
+            placeholder="Yes if the patient must not eat for 10 hours before the test."
             value={field.description}
             onChange={(e) => setField((f) => ({ ...f, description: e.target.value }))}
           />
         </FormField>
       </div>
 
-      <div className="flex flex-wrap gap-x-6 gap-y-3">
+      <div className="grid gap-2 sm:grid-cols-2">
         <FlagSwitch
           id={`${idp}-required`}
           label="Required"
+          hint="Staff must fill it in before saving."
           checked={field.required}
           onChange={(required) => setField((f) => ({ ...f, required }))}
         />
         <FlagSwitch
           id={`${idp}-agentVisible`}
           label="Visible to agent"
+          hint={staffOnly ? "Patient fields are staff-only." : "The agent can read it out to patients."}
           checked={staffOnly ? false : field.agentVisible}
           disabled={staffOnly}
           onChange={(agentVisible) => setField((f) => ({ ...f, agentVisible }))}
@@ -239,31 +252,38 @@ function FieldEditor({
         <FlagSwitch
           id={`${idp}-filterable`}
           label="Filter on list"
+          hint="Adds a filter for it on the list page."
           checked={field.filterable}
           onChange={(filterable) => setField((f) => ({ ...f, filterable }))}
         />
         <FlagSwitch
           id={`${idp}-pii`}
           label="Personal data"
+          hint="Kept private; never sent to the agent."
           checked={field.pii}
           onChange={(pii) => setField((f) => ({ ...f, pii }))}
         />
       </div>
-      {staffOnly ? (
-        <p className="text-muted-foreground text-xs">
-          Patient fields are staff-only; the agent never reads them.
-        </p>
-      ) : field.pii && field.agentVisible ? (
-        <p className="text-muted-foreground text-xs">
+      {!staffOnly && field.pii && field.agentVisible && (
+        <p className="text-ink-3 text-[13px]">
           Personal data is never sent to the agent, even when marked visible.
         </p>
-      ) : null}
+      )}
 
-      <SaveBar pending={pending} error={error} label={mode === "add" ? "Add field" : "Save field"}>
-        <Button type="button" variant="ghost" onClick={onCancel}>
+      {error && (
+        <p role="alert" className="text-danger-text text-[13px]">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-      </SaveBar>
+        <Button type="submit" disabled={pending} className="min-w-28">
+          {pending && <Loader2 className="animate-spin" />}
+          {mode === "add" ? "Add field" : "Save field"}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -271,36 +291,80 @@ function FieldEditor({
 function FlagSwitch({
   id,
   label,
+  hint,
   checked,
   disabled,
   onChange,
 }: {
   id: string;
   label: string;
+  hint: string;
   checked: boolean;
   disabled?: boolean;
   onChange: (next: boolean) => void;
 }) {
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-sm">
-      <Switch id={id} size="sm" checked={checked} disabled={disabled} onCheckedChange={onChange} />
-      {label}
+    <label
+      htmlFor={id}
+      className={cn(
+        "border-line flex items-start gap-3 rounded-[10px] border px-3 py-2.5 transition-colors duration-(--dur-quick)",
+        disabled ? "opacity-60" : "hover:border-line-strong cursor-pointer",
+      )}
+    >
+      <Switch id={id} className="mt-0.5" checked={checked} disabled={disabled} onCheckedChange={onChange} />
+      <span className="min-w-0">
+        <span className="text-ink block text-sm font-medium">{label}</span>
+        <span className="text-ink-3 block text-[13px] leading-[18px]">{hint}</span>
+      </span>
     </label>
+  );
+}
+
+function Chip({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "agent" | "outline" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 items-center gap-1 rounded-full px-2.5 text-xs whitespace-nowrap",
+        tone === "agent" && "bg-agent-soft text-agent-text font-medium",
+        tone === "neutral" && "bg-sunken text-ink-2",
+        tone === "outline" && "border-line text-ink-2 border",
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
 function FieldFlags({ field, isTitle, staffOnly }: { field: FieldDef; isTitle: boolean; staffOnly: boolean }) {
   return (
-    <div className="flex flex-wrap gap-1">
-      <Badge variant="outline">{FIELD_TYPE_LABELS[field.type]}</Badge>
-      {isTitle && <Badge variant="secondary">Title</Badge>}
-      {field.required && <Badge variant="secondary">Required</Badge>}
-      {!staffOnly && isAgentVisible(field) && (
-        <Badge className="bg-status-booked-tint text-status-booked">Agent</Badge>
+    <div className="flex flex-wrap gap-1.5">
+      <Chip tone="outline">{FIELD_TYPE_LABELS[field.type]}</Chip>
+      {isTitle && <Chip>Names each row</Chip>}
+      {field.required && <Chip>Required</Chip>}
+      {!staffOnly && isAgentVisible(field) && <Chip tone="agent">Agent reads it</Chip>}
+      {field.pii && (
+        <Chip>
+          <Lock className="size-3" aria-hidden="true" />
+          Personal
+        </Chip>
       )}
-      {field.pii && <Badge className="bg-status-abandoned-tint text-status-abandoned">Personal</Badge>}
-      {field.filterable && <Badge variant="secondary">Filter</Badge>}
+      {field.filterable && <Chip>Filter</Chip>}
     </div>
+  );
+}
+
+function TypeWell({ type, muted }: { type: FieldType; muted?: boolean }) {
+  const Icon = FIELD_TYPE_ICON[type];
+  return (
+    <span
+      className={cn(
+        "flex size-9 shrink-0 items-center justify-center rounded-[10px]",
+        muted ? "bg-sunken text-ink-4" : "bg-sunken text-ink-2",
+      )}
+      title={FIELD_TYPE_LABELS[type]}
+    >
+      <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden="true" />
+    </span>
   );
 }
 
@@ -338,88 +402,115 @@ export function FieldBuilder({
     setFormErrors(result.fieldErrors ?? {});
   };
 
+  const startAdding = () => {
+    resetForm();
+    setEditing(null);
+    setAdding(true);
+  };
+
   return (
-    <Card className="py-0">
-      <CardHeader className="border-b py-4">
-        <CardTitle>Fields</CardTitle>
-        <CardDescription>
-          {fields.length} of {MAX_FIELDS} fields used (archived fields count).
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="px-0">
-        {active.length === 0 && !adding && (
-          <p className="text-muted-foreground px-4 py-8 text-center text-sm">
-            No fields yet. Add one to start collecting information here.
+    <section aria-labelledby="fields-title" className="bg-surface border-line rounded-xl border">
+      <header className="border-line flex flex-wrap items-center gap-x-6 gap-y-3 border-b px-5 py-4">
+        <div className="min-w-0 flex-1">
+          <h2 id="fields-title" className="text-ink text-[17px] leading-6 font-semibold">
+            {staffOnly ? "Extra fields" : "Fields"}
+          </h2>
+          <p className="text-ink-3 mt-0.5 text-[13px] leading-[18px]">
+            {staffOnly
+              ? "What staff record about each patient, beyond the built-in details."
+              : "What staff fill in for each row, in the order they see it."}
           </p>
+        </div>
+        <div className="flex w-48 items-center gap-3" title="Archived fields count towards the limit">
+          <span className="bg-sunken h-1.5 flex-1 overflow-hidden rounded-full">
+            <span
+              className="bg-agent block h-full rounded-full"
+              style={{ width: `${Math.min(100, (fields.length / MAX_FIELDS) * 100)}%` }}
+            />
+          </span>
+          <span className="tnum text-ink-3 shrink-0 text-xs">
+            {fields.length} of {MAX_FIELDS}
+          </span>
+        </div>
+        {!adding && active.length > 0 && (
+          <Button variant="outline" disabled={full || isPending} onClick={startAdding}>
+            <Plus />
+            Add field
+          </Button>
         )}
+      </header>
 
-        <ul className="divide-y">
-          {active.map((field, index) =>
-            editing === field.key ? (
-              <li key={field.key} className="bg-muted/30 px-4 py-4">
-                <FieldEditor
-                  mode="edit"
-                  staffOnly={staffOnly}
-                  initial={{
-                    key: field.key,
-                    label: field.label,
-                    type: field.type,
-                    required: field.required,
-                    options: field.options,
-                    description: field.description,
-                    agentVisible: field.agentVisible,
-                    filterable: field.filterable,
-                    pii: field.pii,
-                  }}
-                  pending={isPending}
-                  error={formError}
-                  errors={formErrors}
-                  onCancel={() => {
-                    setEditing(null);
-                    resetForm();
-                  }}
-                  onSubmit={(next) => {
-                    resetForm();
-                    run(
-                      (version) =>
-                        updateField(entityType, version, field.key, {
-                          label: next.label,
-                          description: next.description,
-                          required: next.required,
-                          options: next.options,
-                          agentVisible: next.agentVisible,
-                          filterable: next.filterable,
-                          pii: next.pii,
-                        }),
-                      {
-                        success: "Field saved",
-                        onOk: () => setEditing(null),
-                        onError: onFormError,
-                      },
-                    );
-                  }}
-                />
-              </li>
-            ) : (
-              <li
-                key={field.key}
-                className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{field.label}</p>
-                  <p className="text-muted-foreground font-mono text-xs">{field.key}</p>
-                  {field.description && (
-                    <p className="text-muted-foreground mt-0.5 text-xs">{field.description}</p>
-                  )}
-                  <div className="mt-1.5">
-                    <FieldFlags field={field} isTitle={field.key === titleField} staffOnly={staffOnly} />
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
+      {active.length === 0 && !adding && (
+        <div className="px-5 py-6">
+          <RegionEmpty icon={ListPlus} title="No fields yet.">
+            <p>Add the details staff should keep for each row, like price, duration or who it&apos;s for.</p>
+            <Button className="mt-3" disabled={full || isPending} onClick={startAdding}>
+              <Plus />
+              Add the first field
+            </Button>
+          </RegionEmpty>
+        </div>
+      )}
+
+      <ol>
+        {active.map((field, index) =>
+          editing === field.key ? (
+            <li key={field.key} className="border-line bg-sunken/40 border-t px-5 py-5 first:border-t-0">
+              <FieldEditor
+                mode="edit"
+                staffOnly={staffOnly}
+                initial={{
+                  key: field.key,
+                  label: field.label,
+                  type: field.type,
+                  required: field.required,
+                  options: field.options,
+                  description: field.description,
+                  agentVisible: field.agentVisible,
+                  filterable: field.filterable,
+                  pii: field.pii,
+                }}
+                pending={isPending}
+                error={formError}
+                errors={formErrors}
+                onCancel={() => {
+                  setEditing(null);
+                  resetForm();
+                }}
+                onSubmit={(next) => {
+                  resetForm();
+                  run(
+                    (version) =>
+                      updateField(entityType, version, field.key, {
+                        label: next.label,
+                        description: next.description,
+                        required: next.required,
+                        options: next.options,
+                        agentVisible: next.agentVisible,
+                        filterable: next.filterable,
+                        pii: next.pii,
+                      }),
+                    {
+                      success: `${next.label || field.label} saved`,
+                      onOk: () => setEditing(null),
+                      onError: onFormError,
+                    },
+                  );
+                }}
+              />
+            </li>
+          ) : (
+            <li
+              key={field.key}
+              className="border-line flex flex-col gap-3 border-t px-5 py-4 first:border-t-0 sm:flex-row sm:items-center"
+            >
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                {/* Order controls: always visible (not hover-only) so they
+                    work on touch and with a keyboard. */}
+                <div className="flex shrink-0 flex-col">
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-xs"
                     aria-label={`Move ${field.label} up`}
                     disabled={isPending || index === 0}
                     onClick={() => run((v) => moveField(entityType, v, field.key, "up"))}
@@ -428,128 +519,134 @@ export function FieldBuilder({
                   </Button>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon-xs"
                     aria-label={`Move ${field.label} down`}
                     disabled={isPending || index === active.length - 1}
                     onClick={() => run((v) => moveField(entityType, v, field.key, "down"))}
                   >
                     <ArrowDown />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() => {
-                      resetForm();
-                      setAdding(false);
-                      setEditing(field.key);
-                    }}
-                  >
-                    <Pencil />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isPending || field.key === titleField}
-                    title={field.key === titleField ? "The title field can't be archived" : undefined}
-                    onClick={() =>
-                      run((v) => setFieldArchived(entityType, v, field.key, true), {
-                        success: `${field.label} archived`,
-                      })
-                    }
-                  >
-                    <Archive />
-                    Archive
-                  </Button>
                 </div>
-              </li>
-            ),
-          )}
-        </ul>
-
-        <div className="border-t px-4 py-4">
-          {adding ? (
-            <FieldEditor
-              mode="add"
-              staffOnly={staffOnly}
-              initial={{ ...EMPTY_FIELD, agentVisible: !staffOnly }}
-              pending={isPending}
-              error={formError}
-              errors={formErrors}
-              onCancel={() => {
-                setAdding(false);
-                resetForm();
-              }}
-              onSubmit={(next) => {
-                resetForm();
-                run((version) => addField(entityType, version, next), {
-                  success: `${next.label || "Field"} added`,
-                  onOk: () => setAdding(false),
-                  onError: onFormError,
-                });
-              }}
-            />
-          ) : (
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                disabled={full || isPending}
-                onClick={() => {
-                  resetForm();
-                  setEditing(null);
-                  setAdding(true);
-                }}
-              >
-                <Plus />
-                Add field
-              </Button>
-              {isPending && <Loader2 className="text-muted-foreground size-4 animate-spin" />}
-              {full && (
-                <p className="text-muted-foreground text-xs">
-                  This page has reached {MAX_FIELDS} fields.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {archived.length > 0 && (
-          <details className="border-t">
-            <summary className="text-muted-foreground cursor-pointer px-4 py-3 text-sm">
-              Archived fields ({archived.length})
-            </summary>
-            <ul className="divide-y border-t">
-              {archived.map((field) => (
-                <li
-                  key={field.key}
-                  className="flex flex-col gap-2 px-4 py-3 opacity-70 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm">{field.label}</p>
-                    <p className="text-muted-foreground font-mono text-xs">
-                      {field.key} · {FIELD_TYPE_LABELS[field.type]}
-                    </p>
+                <TypeWell type={field.type} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-ink truncate text-[15px] font-medium">{field.label}</span>
+                    <span className="text-ink-4 font-mono text-xs">{field.key}</span>
+                  </p>
+                  {field.description && (
+                    <p className="text-ink-3 mt-0.5 text-[13px] leading-[18px]">{field.description}</p>
+                  )}
+                  <div className="mt-2">
+                    <FieldFlags field={field} isTitle={field.key === titleField} staffOnly={staffOnly} />
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={isPending}
-                    onClick={() =>
-                      run((v) => setFieldArchived(entityType, v, field.key, false), {
-                        success: `${field.label} restored`,
-                      })
-                    }
-                  >
-                    <ArchiveRestore />
-                    Restore
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </details>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-1 pl-[88px] sm:pl-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => {
+                    resetForm();
+                    setAdding(false);
+                    setEditing(field.key);
+                  }}
+                >
+                  <Pencil />
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isPending || field.key === titleField}
+                  title={field.key === titleField ? "The field that names each row can't be archived" : undefined}
+                  onClick={() =>
+                    run((v) => setFieldArchived(entityType, v, field.key, true), {
+                      success: `${field.label} archived`,
+                    })
+                  }
+                >
+                  <Archive />
+                  Archive
+                </Button>
+              </div>
+            </li>
+          ),
         )}
-      </CardContent>
-    </Card>
+      </ol>
+
+      {adding && (
+        <div className="border-line bg-sunken/40 border-t px-5 py-5">
+          <FieldEditor
+            mode="add"
+            staffOnly={staffOnly}
+            initial={{ ...EMPTY_FIELD, agentVisible: !staffOnly }}
+            pending={isPending}
+            error={formError}
+            errors={formErrors}
+            onCancel={() => {
+              setAdding(false);
+              resetForm();
+            }}
+            onSubmit={(next) => {
+              resetForm();
+              run((version) => addField(entityType, version, next), {
+                success: `${next.label || "Field"} added`,
+                onOk: () => setAdding(false),
+                onError: onFormError,
+              });
+            }}
+          />
+        </div>
+      )}
+
+      {(full || (isPending && !adding && editing === null)) && (
+        <p className="border-line text-ink-3 flex items-center gap-2 border-t px-5 py-3 text-[13px]" aria-live="polite">
+          {isPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          {full ? `This page has reached ${MAX_FIELDS} fields, including archived ones.` : "Saving…"}
+        </p>
+      )}
+
+      {archived.length > 0 && (
+        <details className="group/archived border-line border-t">
+          <summary className="text-ink-3 hover:text-ink-2 flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-[13px] font-medium transition-colors duration-(--dur-quick) [&::-webkit-details-marker]:hidden">
+            <ChevronRight
+              aria-hidden="true"
+              className="size-3.5 transition-transform duration-(--dur-base) group-open/archived:rotate-90"
+            />
+            Archived fields ({archived.length})
+          </summary>
+          <ul>
+            {archived.map((field) => (
+              <li
+                key={field.key}
+                className="border-line flex items-center gap-3 border-t px-5 py-3"
+              >
+                <TypeWell type={field.type} muted />
+                <div className="min-w-0 flex-1">
+                  <p className="text-ink-2 truncate text-sm">{field.label}</p>
+                  <p className="text-ink-4 font-mono text-xs">
+                    {field.key} · {FIELD_TYPE_LABELS[field.type]}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() =>
+                    run((v) => setFieldArchived(entityType, v, field.key, false), {
+                      success: `${field.label} restored`,
+                    })
+                  }
+                >
+                  <ArchiveRestore />
+                  Restore
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }

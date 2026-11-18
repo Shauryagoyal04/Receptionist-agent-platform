@@ -1,26 +1,33 @@
-import { PageShell } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, PageShell } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** Shaped like the people table: avatar, name and email, role, dates. */
 export default function TeamLoading() {
   return (
     <PageShell>
-      <Skeleton className="h-7 w-40" />
-      <Skeleton className="mt-2 h-4 w-96 max-w-full" />
-      <div className="mt-5 flex gap-1">
-        <Skeleton className="h-8 w-16" />
-        <Skeleton className="h-8 w-20" />
-        <Skeleton className="h-8 w-20" />
-      </div>
-      <div className="mt-4 flex flex-col gap-3">
+      <PageHeader
+        title="Team"
+        description="Anyone can sign up. New accounts see nothing until you give them a role here."
+      />
+      <div
+        className="bg-surface border-line mt-6 overflow-hidden rounded-xl border"
+        aria-busy="true"
+        aria-label="Loading team"
+      >
+        <div className="px-5 pt-5 pb-4">
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="mt-2 h-3.5 w-80 max-w-full" />
+        </div>
+        <Skeleton className="h-10 rounded-none" />
         {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="py-0">
-            <CardContent className="flex flex-col gap-2 py-4">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-4 w-full max-w-md" />
-            </CardContent>
-          </Card>
+          <div key={index} className="border-line flex h-16 items-center gap-3 border-t px-4">
+            <Skeleton className="size-9 rounded-full" />
+            <div className="flex-1">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="mt-1.5 h-3.5 w-52" />
+            </div>
+            <Skeleton className="h-9 w-40 rounded-[10px]" />
+          </div>
         ))}
       </div>
     </PageShell>

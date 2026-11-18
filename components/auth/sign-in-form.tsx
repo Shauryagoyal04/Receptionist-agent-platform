@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
-import { Loader2 } from "lucide-react";
+import { CircleAlert, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,15 +70,15 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Review what the virtual receptionist handled today.
+        <h1 className="text-ink text-[28px] leading-[34px] font-semibold">Sign in</h1>
+        <p className="text-ink-3 mt-1.5 text-[15px] leading-[22px]">
+          Welcome back. See what the agent handled today.
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email" className="text-ink-2 text-sm font-medium">Email</Label>
           <Input
             id="email"
             name="email"
@@ -86,12 +86,13 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
             autoComplete="email"
             required
             disabled={pending}
+            className="h-11"
             placeholder="you@hospital.example"
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="password">Password</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="password" className="text-ink-2 text-sm font-medium">Password</Label>
           <Input
             id="password"
             name="password"
@@ -99,6 +100,7 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
             autoComplete="current-password"
             required
             disabled={pending}
+            className="h-11"
           />
         </div>
 
@@ -106,13 +108,14 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
           <p
             role="alert"
             aria-live="polite"
-            className="text-status-escalated bg-status-escalated-tint rounded-md px-3 py-2 text-sm"
+            className="bg-danger-soft text-danger-text flex items-start gap-2 rounded-[10px] px-3.5 py-2.5 text-sm"
           >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {error}
           </p>
         )}
 
-        <Button type="submit" disabled={pending} className="w-full">
+        <Button type="submit" size="lg" disabled={pending} className="mt-1 h-11 w-full">
           {pending && <Loader2 className="animate-spin" />}
           Sign in
         </Button>
@@ -121,9 +124,9 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
       {googleEnabled && (
         <>
           <div className="flex items-center gap-3">
-            <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-xs">or</span>
-            <span className="bg-border h-px flex-1" />
+            <span className="bg-line h-px flex-1" />
+            <span className="text-ink-3 text-[13px]">or</span>
+            <span className="bg-line h-px flex-1" />
           </div>
 
           <GoogleButton
@@ -137,9 +140,9 @@ export function SignInForm({ googleEnabled }: { googleEnabled: boolean }) {
         </>
       )}
 
-      <p className="text-muted-foreground text-sm">
+      <p className="text-ink-3 text-sm">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-foreground underline underline-offset-4">
+        <Link href="/signup" className="text-agent-text font-medium underline-offset-4 hover:underline">
           Create one
         </Link>
       </p>

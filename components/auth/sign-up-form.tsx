@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
-import { Loader2 } from "lucide-react";
+import { CircleAlert, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,10 +77,10 @@ export function SignUpForm({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-ink text-[28px] leading-[34px] font-semibold">
           Create an account
         </h1>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="text-ink-3 mt-1.5 text-[15px] leading-[22px]">
           {allowedDomains.length > 0
             ? `Open to staff with an ${allowedDomains
                 .map((domain) => `@${domain}`)
@@ -89,9 +89,9 @@ export function SignUpForm({
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="name">Full name</Label>
+      <form onSubmit={onSubmit} className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="name" className="text-ink-2 text-sm font-medium">Full name</Label>
           <Input
             id="name"
             name="name"
@@ -99,12 +99,13 @@ export function SignUpForm({
             autoComplete="name"
             required
             disabled={pending}
+            className="h-11"
             placeholder="Priya Sharma"
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="email" className="text-ink-2 text-sm font-medium">Email</Label>
           <Input
             id="email"
             name="email"
@@ -112,6 +113,7 @@ export function SignUpForm({
             autoComplete="email"
             required
             disabled={pending}
+            className="h-11"
             placeholder={
               allowedDomains.length > 0
                 ? `you@${allowedDomains[0]}`
@@ -120,8 +122,8 @@ export function SignUpForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="password">Password</Label>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="password" className="text-ink-2 text-sm font-medium">Password</Label>
           <Input
             id="password"
             name="password"
@@ -130,9 +132,10 @@ export function SignUpForm({
             required
             minLength={8}
             disabled={pending}
+            className="h-11"
             aria-describedby="password-hint"
           />
-          <p id="password-hint" className="text-muted-foreground text-xs">
+          <p id="password-hint" className="text-ink-3 text-[13px]">
             At least 8 characters.
           </p>
         </div>
@@ -141,13 +144,14 @@ export function SignUpForm({
           <p
             role="alert"
             aria-live="polite"
-            className="text-status-escalated bg-status-escalated-tint rounded-md px-3 py-2 text-sm"
+            className="bg-danger-soft text-danger-text flex items-start gap-2 rounded-[10px] px-3.5 py-2.5 text-sm"
           >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {error}
           </p>
         )}
 
-        <Button type="submit" disabled={pending} className="w-full">
+        <Button type="submit" size="lg" disabled={pending} className="mt-1 h-11 w-full">
           {pending && <Loader2 className="animate-spin" />}
           Create account
         </Button>
@@ -156,9 +160,9 @@ export function SignUpForm({
       {googleEnabled && (
         <>
           <div className="flex items-center gap-3">
-            <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-xs">or</span>
-            <span className="bg-border h-px flex-1" />
+            <span className="bg-line h-px flex-1" />
+            <span className="text-ink-3 text-[13px]">or</span>
+            <span className="bg-line h-px flex-1" />
           </div>
 
           <GoogleButton
@@ -172,9 +176,9 @@ export function SignUpForm({
         </>
       )}
 
-      <p className="text-muted-foreground text-sm">
+      <p className="text-ink-3 text-sm">
         Already have an account?{" "}
-        <Link href="/login" className="text-foreground underline underline-offset-4">
+        <Link href="/login" className="text-agent-text font-medium underline-offset-4 hover:underline">
           Sign in
         </Link>
       </p>

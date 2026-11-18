@@ -26,11 +26,11 @@ export function PageHeader({
       )}
     >
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+        <h1 className="text-ink text-2xl leading-8 font-semibold sm:text-[28px] sm:leading-[34px]">
           {title}
         </h1>
         {description && (
-          <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+          <p className="text-ink-3 mt-1 text-[15px] leading-[22px]">{description}</p>
         )}
       </div>
       {children && (
@@ -42,7 +42,10 @@ export function PageHeader({
   );
 }
 
-/** Standard page frame: max width, gutters, and consistent vertical rhythm. */
+/**
+ * Standard page frame: 1280px max, left-aligned beside the sidebar rather
+ * than centred in a sea of background.
+ */
 export function PageShell({
   children,
   className,
@@ -53,7 +56,7 @@ export function PageShell({
   return (
     <main
       className={cn(
-        "mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8",
+        "w-full max-w-[1280px] px-4 py-6 sm:px-8 sm:py-8",
         className,
       )}
     >

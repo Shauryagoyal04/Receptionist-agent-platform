@@ -59,8 +59,10 @@ export function StaffNotes({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor="staff-note">Internal note</Label>
-        <span className="text-muted-foreground tabular font-mono text-xs">
+        <Label htmlFor="staff-note" className="text-ink-2 text-[13px]">
+          Only staff see this. The agent doesn&apos;t read it.
+        </Label>
+        <span className="tnum text-ink-4 text-xs">
           {value.length}/{MAX_LENGTH}
         </span>
       </div>
@@ -72,28 +74,28 @@ export function StaffNotes({
         value={value}
         disabled={isPending}
         onChange={(event) => setValue(event.target.value)}
-        placeholder="Anything the next person on the desk should know."
+        placeholder="e.g. Called back at 4 PM, booked with Dr Rao for Friday."
         className="resize-y text-sm"
       />
 
       {error !== null && (
-        <p role="alert" className="text-status-escalated text-xs">
+        <p role="alert" className="text-danger-text text-xs">
           {error}
         </p>
       )}
 
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={onSave} disabled={!dirty || isPending}>
+        <Button size="sm" variant={dirty ? "default" : "outline"} onClick={onSave} disabled={!dirty || isPending}>
           {isPending && <Loader2 className="animate-spin" />}
           Save note
         </Button>
 
         {/* aria-live so the confirmation is announced, not just shown. */}
-        <span aria-live="polite" className="text-muted-foreground text-xs">
+        <span aria-live="polite" className="text-ink-3 text-xs">
           {confirmed && !dirty ? (
-            <span className="text-status-booked flex items-center gap-1">
+            <span className="text-booked-text md-fade flex items-center gap-1">
               <Check className="size-3.5" />
-              Saved
+              Note saved
             </span>
           ) : dirty ? (
             "Unsaved changes"

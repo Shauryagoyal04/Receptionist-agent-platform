@@ -65,16 +65,50 @@ export function toSubmitValues(fields: FieldDef[], values: FormValues): Attribut
   return out;
 }
 
+/*
+ * Realistic placeholders from a clinic's world, picked from what the field is
+ * called. Never "Enter value": an example shows staff the shape the agent
+ * expects.
+ */
+const PLACEHOLDERS: Array<{ pattern: RegExp; text: string }> = [
+  { pattern: /emergenc|casualty/i, text: "24×7 casualty with an on-call physician" },
+  { pattern: /ambulance/i, text: "+91 80 2222 1088" },
+  { pattern: /visiting/i, text: "4 PM – 7 PM daily" },
+  { pattern: /bed/i, text: "40" },
+  { pattern: /parking/i, text: "Free basement parking for patients" },
+  { pattern: /price|fee|charge|cost|amount|rate/i, text: "1200" },
+  { pattern: /duration|minutes/i, text: "30" },
+  { pattern: /insur|scheme|subsid|tpa/i, text: "Star Health, CGHS, Ayushman Bharat" },
+  { pattern: /language/i, text: "English, Hindi, Kannada" },
+  { pattern: /qualif|degree/i, text: "MBBS, MD (General Medicine)" },
+  { pattern: /experience/i, text: "12 years" },
+  { pattern: /eligib/i, text: "Senior citizens above 60 with a valid ID" },
+  { pattern: /document/i, text: "Aadhaar card, scheme card" },
+  { pattern: /prepar|instruction/i, text: "Fasting for 10–12 hours before the test" },
+  { pattern: /role|designation/i, text: "Front desk executive" },
+  { pattern: /shift/i, text: "9 AM – 5 PM, Mon–Sat" },
+];
+
+function placeholderFor(field: FieldDef): string | undefined {
+  if (field.type === "url") return "https://";
+  if (field.type === "email") return "reception@sunrisehealth.in";
+  if (field.type === "phone") return "+91 80 4567 8900";
+  return PLACEHOLDERS.find((p) => p.pattern.test(`${field.key} ${field.label}`))?.text;
+}
+
+/** Tag input: chips in petrol soft, with an × that appears on hover/focus. */
 function TagInput({
   id,
   value,
   onChange,
   invalid,
+  placeholder,
 }: {
   id: string;
   value: string[];
   onChange: (next: string[]) => void;
   invalid: boolean;
+  placeholder?: string;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -91,16 +125,16 @@ function TagInput({
           {value.map((tag) => (
             <li
               key={tag}
-              className="bg-muted flex h-6 items-center gap-1 rounded-md pr-1 pl-2 text-xs"
+              className="group/chip bg-agent-soft text-agent-text md-fade flex h-7 items-center gap-1 rounded-full pr-1.5 pl-3 text-[13px] font-medium"
             >
               {tag}
               <button
                 type="button"
                 aria-label={`Remove ${tag}`}
                 onClick={() => onChange(value.filter((t) => t !== tag))}
-                className="text-muted-foreground hover:text-foreground rounded p-0.5"
+                className="hover:bg-agent/15 rounded-full p-0.5 opacity-60 transition-opacity duration-(--dur-quick) group-hover/chip:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
               >
-                <X className="size-3" />
+                <X className="size-3.5" />
               </button>
             </li>
           ))}
@@ -110,7 +144,7 @@ function TagInput({
         id={id}
         value={draft}
         aria-invalid={invalid || undefined}
-        placeholder="Type and press Enter"
+        placeholder={value.length === 0 ? (placeholder ? `${placeholder} · press Enter after each` : "Type and press Enter") : "Add another"}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === ",") {
@@ -132,18 +166,22 @@ export function FieldInput({
   onChange,
   error,
   idPrefix = "attr",
+  showAgentTag = false,
 }: {
   field: FieldDef;
   value: FormValue | undefined;
   onChange: (next: FormValue) => void;
   error?: string;
   idPrefix?: string;
+  /** Tag fields the agent reads to patients. Off where nothing reaches it. */
+  showAgentTag?: boolean;
 }) {
   const id = `${idPrefix}-${field.key}`;
   const invalid = Boolean(error);
   const describedBy = error ? `${id}-error` : undefined;
   const text = typeof value === "string" ? value : "";
   const list = Array.isArray(value) ? value : [];
+  const placeholder = placeholderFor(field);
 
   let control: React.ReactNode;
   switch (field.type) {
@@ -156,6 +194,7 @@ export function FieldInput({
           value={text}
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
+          placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
           className="resize-y"
         />
@@ -163,14 +202,14 @@ export function FieldInput({
       break;
     case "boolean":
       control = (
-        <div className="flex h-8 items-center gap-2">
+        <div className="flex h-10 items-center gap-2.5">
           <Switch
             id={id}
             checked={value === true}
             aria-describedby={describedBy}
             onCheckedChange={(checked) => onChange(checked)}
           />
-          <span className="text-muted-foreground text-sm">
+          <span className="text-ink-2 text-sm">
             {value === true ? "Yes" : "No"}
           </span>
         </div>
@@ -226,7 +265,9 @@ export function FieldInput({
       break;
     }
     case "tags":
-      control = <TagInput id={id} value={list} onChange={onChange} invalid={invalid} />;
+      control = (
+        <TagInput id={id} value={list} onChange={onChange} invalid={invalid} placeholder={placeholder} />
+      );
       break;
     default: {
       const inputType =
@@ -248,7 +289,7 @@ export function FieldInput({
           inputMode={field.type === "number" ? "decimal" : undefined}
           step={field.type === "number" ? "any" : undefined}
           maxLength={field.type === "text" ? 500 : undefined}
-          placeholder={field.type === "url" ? "https://" : undefined}
+          placeholder={placeholder}
           value={text}
           aria-invalid={invalid || undefined}
           aria-describedby={describedBy}
@@ -265,6 +306,7 @@ export function FieldInput({
       required={field.required}
       hint={field.description || undefined}
       error={error}
+      agentReads={showAgentTag && field.agentVisible}
       className={field.type === "longtext" || field.type === "multiselect" || field.type === "tags" ? "sm:col-span-2" : undefined}
     >
       {control}
@@ -278,16 +320,18 @@ export function AttributeFields({
   values,
   onChange,
   errors,
+  showAgentTag = false,
 }: {
   fields: FieldDef[];
   values: FormValues;
   onChange: (key: string, value: FormValue) => void;
   errors: Record<string, string>;
+  showAgentTag?: boolean;
 }) {
   const visible = activeFields(fields);
   if (visible.length === 0) return null;
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
       {visible.map((field) => (
         <FieldInput
           key={field.key}
@@ -295,6 +339,7 @@ export function AttributeFields({
           value={values[field.key]}
           onChange={(value) => onChange(field.key, value)}
           error={errors[`attributes.${field.key}`]}
+          showAgentTag={showAgentTag}
         />
       ))}
     </div>

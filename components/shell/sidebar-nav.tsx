@@ -1,23 +1,27 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useSelectedLayoutSegments } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import {
-  CUSTOM_PAGE_ICON,
-  NAV_ITEMS,
-  SETTINGS_NAV_ITEM,
-  TEAM_NAV_ITEM,
+  ADMIN_ITEMS,
+  DESK_ITEMS,
+  KNOWLEDGE_ITEMS,
+  NAV_GROUP_LABELS,
+  customPageIcon,
   type CustomNavPage,
   type NavBadge,
+  type NavGroupId,
   type NavItem,
 } from "@/components/shell/nav-items";
 
 /*
  * Navigation for the fixed left rail and the mobile tab bar. A Client
- * Component only because the active state depends on the current segments;
- * the list of custom pages and the role come from the layout as props.
+ * Component only because the active state depends on the current segments
+ * (and the badge bounces when its count rises); the list of custom pages and
+ * the role come from the layout as props.
  */
 
 type NavProps = {
@@ -29,6 +33,8 @@ type NavProps = {
   pendingUsers: number;
 };
 
+type NavGroup = { id: NavGroupId; label: string | null; items: NavItem[] };
+
 function badgeCount(item: NavItem, props: NavProps): number {
   const counts: Record<NavBadge, number> = {
     openEscalations: props.openEscalations,
@@ -38,136 +44,146 @@ function badgeCount(item: NavItem, props: NavProps): number {
 }
 
 function useNav({ customPages, isAdmin }: NavProps) {
-  const current = useSelectedLayoutSegments().filter(
-    (segment) => !segment.startsWith("("),
-  );
-  // Staff only get the fixed staff pages; custom pages are clinic data.
+  const current = useSelectedLayoutSegments().filter((segment) => !segment.startsWith("("));
+  const visible = (items: readonly NavItem[]) => items.filter((item) => isAdmin || !item.adminOnly);
+
+  // Staff only get the fixed desk pages; custom pages are clinic data.
   const custom: NavItem[] = (isAdmin ? customPages : []).map((page) => ({
     href: `/data/${page.entityType}`,
     segments: ["data", page.entityType],
     label: page.label,
-    icon: CUSTOM_PAGE_ICON,
+    icon: customPageIcon(page),
     description: page.label,
   }));
+
+  const groups: NavGroup[] = (
+    [
+      { id: "desk", items: visible(DESK_ITEMS) },
+      { id: "knowledge", items: [...visible(KNOWLEDGE_ITEMS), ...custom] },
+      { id: "admin", items: visible(ADMIN_ITEMS) },
+    ] as const
+  )
+    .map((group) => ({ ...group, items: [...group.items], label: NAV_GROUP_LABELS[group.id] }))
+    .filter((group) => group.items.length > 0);
+
   const isActive = (item: NavItem) =>
     item.segments.every((segment, index) => current[index] === segment);
-  return {
-    main: NAV_ITEMS.filter((item) => isAdmin || !item.adminOnly),
-    custom,
-    settings: isAdmin ? [TEAM_NAV_ITEM, SETTINGS_NAV_ITEM] : [],
-    isActive,
-  };
+
+  return { groups, isActive };
 }
 
-function CountBadge({ count }: { count: number }) {
+/**
+ * A count beside a nav label. Escalations are amber (the human side); other
+ * counts, like accounts to approve, stay neutral. Bounces once when it rises.
+ */
+function CountBadge({ count, badge }: { count: number; badge?: NavBadge }) {
+  const previous = React.useRef(count);
+  const [bump, setBump] = React.useState(0);
+  React.useEffect(() => {
+    if (count > previous.current) setBump((n) => n + 1);
+    previous.current = count;
+  }, [count]);
+
   if (count <= 0) return null;
+  const human = badge === "openEscalations";
   return (
     <span
-      className="bg-status-escalated text-background tabular ml-auto rounded-full px-1.5 text-[11px] leading-5 font-medium"
-      aria-label={`${count} waiting`}
+      key={bump}
+      className={cn(
+        "tnum ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold",
+        human ? "bg-human text-white" : "bg-sunken text-ink-2",
+        bump > 0 && "md-bounce",
+      )}
+      aria-label={human ? `${count} waiting` : `${count} to review`}
     >
       {count > 99 ? "99+" : count}
     </span>
   );
 }
 
-function RailLink({
-  item,
-  active,
-  count,
-}: {
-  item: NavItem;
-  active: boolean;
-  count: number;
-}) {
+function RailLink({ item, active, count }: { item: NavItem; active: boolean; count: number }) {
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
+      title={item.description}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-colors",
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+        "group/nav flex h-9 items-center gap-3 rounded-[10px] px-2.5 text-sm transition-colors duration-(--dur-quick)",
+        active ? "bg-agent-soft text-agent-text font-medium" : "text-ink-2 hover:bg-sunken hover:text-ink",
       )}
     >
-      <Icon className="size-4 shrink-0" />
+      <Icon
+        className={cn(
+          "size-[18px] shrink-0 transition-colors duration-(--dur-quick)",
+          active ? "text-agent" : "text-ink-3 group-hover/nav:text-ink",
+        )}
+        strokeWidth={1.75}
+        aria-hidden="true"
+      />
       <span className="truncate">{item.label}</span>
-      <CountBadge count={count} />
+      <CountBadge count={count} badge={item.badge} />
     </Link>
   );
 }
 
 export function SidebarNav(props: NavProps) {
-  const { main, custom, settings, isActive } = useNav(props);
+  const { groups, isActive } = useNav(props);
 
   return (
-    <nav aria-label="Main" className="flex flex-col gap-0.5 px-3">
-      {main.map((item) => (
-        <RailLink
-          key={item.href}
-          item={item}
-          active={isActive(item)}
-          count={badgeCount(item, props)}
-        />
-      ))}
-      {custom.length > 0 && (
-        <>
-          <p className="text-sidebar-foreground/50 mt-4 mb-1 px-2.5 text-xs font-medium">
-            Clinic pages
-          </p>
-          {custom.map((item) => (
-            <RailLink key={item.href} item={item} active={isActive(item)} count={0} />
-          ))}
-        </>
-      )}
-      {settings.length > 0 && (
-        <div className="mt-4">
-          {settings.map((item) => (
-            <RailLink
-              key={item.href}
-              item={item}
-              active={isActive(item)}
-              count={badgeCount(item, props)}
-            />
-          ))}
+    <nav aria-label="Main" className="flex flex-col gap-5 px-3">
+      {groups.map((group) => (
+        <div key={group.id} role="group" aria-label={group.label ?? "Desk"}>
+          {group.label && (
+            <p className="text-ink-3 mb-1 px-2.5 text-xs font-medium">{group.label}</p>
+          )}
+          <ul className="flex flex-col gap-0.5">
+            {group.items.map((item) => (
+              <li key={item.href}>
+                <RailLink item={item} active={isActive(item)} count={badgeCount(item, props)} />
+              </li>
+            ))}
+          </ul>
         </div>
-      )}
+      ))}
     </nav>
   );
 }
 
 /**
  * The same destinations as a horizontally scrolling tab bar for narrow
- * screens: no drawer to discover, no focus trap to get wrong.
+ * screens: no drawer to discover, no focus trap to get wrong. Groups are
+ * separated by a hairline rather than labelled, to keep the bar one row.
  */
 export function MobileNav(props: NavProps) {
-  const { main, custom, settings, isActive } = useNav(props);
+  const { groups, isActive } = useNav(props);
 
   return (
-    <nav aria-label="Main" className="flex gap-1 overflow-x-auto px-3 pb-2">
-      {[...main, ...custom, ...settings].map((item) => {
-        const active = isActive(item);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm whitespace-nowrap transition-colors",
-              active
-                ? "bg-accent text-accent-foreground font-medium"
-                : "text-muted-foreground hover:bg-accent/60",
-            )}
-          >
-            <Icon className="size-4 shrink-0" />
-            {item.label}
-            <CountBadge count={badgeCount(item, props)} />
-          </Link>
-        );
-      })}
+    <nav aria-label="Main" className="flex items-center gap-1 overflow-x-auto px-3 pb-2">
+      {groups.map((group, index) => (
+        <React.Fragment key={group.id}>
+          {index > 0 && <span aria-hidden="true" className="bg-line mx-1 h-5 w-px shrink-0" />}
+          {group.items.map((item) => {
+            const active = isActive(item);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-10 items-center gap-2 rounded-[10px] px-3 text-sm whitespace-nowrap transition-colors duration-(--dur-quick)",
+                  active ? "bg-agent-soft text-agent-text font-medium" : "text-ink-2 hover:bg-sunken",
+                )}
+              >
+                <Icon className={cn("size-[18px] shrink-0", active ? "text-agent" : "text-ink-3")} strokeWidth={1.75} aria-hidden="true" />
+                {item.label}
+                <CountBadge count={badgeCount(item, props)} badge={item.badge} />
+              </Link>
+            );
+          })}
+        </React.Fragment>
+      ))}
     </nav>
   );
 }

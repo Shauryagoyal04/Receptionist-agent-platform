@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { activeFields, type FieldDef } from "@/lib/clinic-data/model";
+import { cn } from "@/lib/utils";
 
 /*
  * Search plus one filter per `filterable` field (contract §2.2), as a plain
@@ -36,12 +37,15 @@ export function ListFilters({
   q,
   filters,
   searchPlaceholder,
+  className,
 }: {
   basePath: string;
   fields: FieldDef[];
   q: string | null;
   filters: Record<string, string>;
   searchPlaceholder: string;
+  /** Where it sits: the top row of a list card, or its own bar. */
+  className?: string;
 }) {
   const filterable = activeFields(fields).filter((field) => field.filterable);
   const active = Boolean(q) || Object.keys(filters).length > 0;
@@ -51,12 +55,12 @@ export function ListFilters({
       method="get"
       action={basePath}
       role="search"
-      className="flex flex-wrap items-end gap-2"
+      className={cn("flex flex-wrap items-center gap-2", className)}
     >
-      <div className="relative w-full sm:w-64">
+      <div className="relative w-full sm:w-72">
         <Search
           aria-hidden
-          className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2"
+          className="text-ink-3 pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
         />
         <Input
           name="q"
@@ -64,7 +68,7 @@ export function ListFilters({
           defaultValue={q ?? ""}
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
-          className="pl-8"
+          className="pl-9"
         />
       </div>
 
@@ -104,13 +108,16 @@ export function ListFilters({
         );
       })}
 
-      <div className="flex gap-2">
+      <div className="flex gap-1">
         <Button type="submit" variant="outline">
-          Apply
+          {filterable.length > 0 ? "Apply" : "Search"}
         </Button>
         {active && (
           <Button variant="ghost" asChild>
-            <Link href={basePath}>Clear</Link>
+            <Link href={basePath}>
+              <X />
+              Clear
+            </Link>
           </Button>
         )}
       </div>

@@ -1,5 +1,5 @@
-import { ListSkeleton } from "@/components/clinic-data/states";
+import { CardGridSkeleton } from "@/components/clinic-data/states";
 
 export default function DoctorsLoading() {
-  return <ListSkeleton columns={6} />;
+  return <CardGridSkeleton />;
 }

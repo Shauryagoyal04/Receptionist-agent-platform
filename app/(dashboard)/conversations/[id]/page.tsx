@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, Headphones, TriangleAlert } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Headset } from "lucide-react";
 
 import { PageShell } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -15,7 +15,7 @@ import {
   StaffReply,
 } from "@/components/escalations/staff-reply";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { CHANNEL_ICON } from "@/components/analytics/channel-split";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getServerEnv } from "@/lib/env";
 import {
@@ -35,7 +35,7 @@ import {
   parseUrlFilters,
   toDataFilters,
 } from "@/lib/conversations/params";
-import { CHANNEL_LABELS, outcomeLabels } from "@/lib/types";
+import { CHANNEL_LABELS, CHANNEL_MEANING, meaningVar, outcomeLabels } from "@/lib/types";
 import { formatPhone } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -94,30 +94,51 @@ export default async function ConversationDetailPage({
         )
       : null;
 
+  const ChannelIcon = CHANNEL_ICON[conversation.channel];
+  const channelMeaning = CHANNEL_MEANING[conversation.channel];
+  const startedLabel = formatInZone(conversation.startedAt, timeZone, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
   return (
     <PageShell>
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
+      <Button variant="ghost" size="sm" asChild className="-ml-2.5">
         <Link href={`/conversations${listQuery}`}>
           <ArrowLeft />
-          Back to conversations
+          Conversations
         </Link>
       </Button>
 
-      <header className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-            {conversation.patient.name}
-          </h1>
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-            <span className="tabular font-mono">
-              {formatPhone(conversation.patient.phone)}
-            </span>
-            {capabilities.showChannelUi && (
-              <span>{CHANNEL_LABELS[conversation.channel]}</span>
-            )}
-            <StatusBadge kind="outcome" value={conversation.outcome}>
-              {outcomeLabels(capabilities.handoffEnabled)[conversation.outcome]}
-            </StatusBadge>
+      <header className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <span
+            className="flex size-12 shrink-0 items-center justify-center rounded-xl"
+            style={{
+              backgroundColor: meaningVar(channelMeaning, "soft"),
+              color: meaningVar(channelMeaning),
+            }}
+          >
+            <ChannelIcon className="size-6" strokeWidth={1.75} aria-hidden="true" />
+            <span className="sr-only">{CHANNEL_LABELS[conversation.channel]}</span>
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-ink truncate text-2xl leading-8 font-semibold sm:text-[28px] sm:leading-[34px]">
+              {conversation.patient.name}
+            </h1>
+            <div className="text-ink-3 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+              <StatusBadge kind="outcome" value={conversation.outcome}>
+                {outcomeLabels(capabilities.handoffEnabled)[conversation.outcome]}
+              </StatusBadge>
+              <span className="tnum">{formatPhone(conversation.patient.phone)}</span>
+              <span aria-hidden="true">·</span>
+              <span>
+                {CHANNEL_LABELS[conversation.channel]}, <time dateTime={conversation.startedAt}>{startedLabel}</time>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -128,56 +149,65 @@ export default async function ConversationDetailPage({
       </header>
 
       {staffHandled && (
-        <Card className="border-l-status-escalated mt-4 border-l-2">
-          <CardContent className="flex flex-col gap-4 py-4">
+        <section
+          aria-labelledby="staff-handled-title"
+          className="bg-surface border-human/40 mt-5 overflow-hidden rounded-xl border"
+        >
+          <div className="bg-human-soft flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
             <LiveRefresh />
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="bg-human relative flex size-9 shrink-0 items-center justify-center rounded-[10px] text-white">
+                <Headset className="size-5" strokeWidth={1.75} aria-hidden="true" />
+              </span>
               <div className="min-w-0">
-                <h2 className="flex items-center gap-2 text-sm font-semibold">
-                  <Headphones className="text-status-escalated size-4" />
-                  With clinic staff — the AI is not replying
+                <h2 id="staff-handled-title" className="text-human-text text-[15px] font-semibold">
+                  You&apos;re talking to this patient. The agent has stopped replying.
                 </h2>
-                <p className="text-muted-foreground mt-1 text-sm">
+                <p className="text-human-text/85 mt-0.5 text-[13px] leading-[18px]">
                   {conversation.escalationReason
-                    ? `Asked for a person: ${conversation.escalationReason}.`
-                    : "The patient asked for a person."}{" "}
+                    ? `They asked for a person: ${conversation.escalationReason}.`
+                    : "They asked for a person."}{" "}
                   {escalation?.status === "claimed"
-                    ? `Claimed by ${escalation.claimedByName ?? "staff"}.`
-                    : "Not claimed yet — replying claims it."}
+                    ? `${escalation.claimedByName ?? "A colleague"} is handling it.`
+                    : "Nobody has claimed it yet. Replying claims it."}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-col gap-2 sm:w-56">
-                {escalation?.status === "open" && (
-                  <EscalationActions
-                    escalationId={escalation.id}
-                    status="open"
-                    conversationDocId={conversation.id}
-                    channel="whatsapp"
-                    claimOnly
-                  />
-                )}
-                <HandBackButton conversationId={conversation.id} />
-              </div>
             </div>
+            <div className="flex shrink-0 flex-col gap-2 sm:w-56">
+              {escalation?.status === "open" && (
+                <EscalationActions
+                  escalationId={escalation.id}
+                  status="open"
+                  conversationDocId={conversation.id}
+                  channel="whatsapp"
+                  claimOnly
+                />
+              )}
+              <HandBackButton conversationId={conversation.id} />
+            </div>
+          </div>
+          <div className="px-5 py-4">
             <StaffReply
               conversationId={conversation.id}
               windowOpen={windowOpen}
               windowClosesAt={windowClosesAt}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       )}
 
       {conversation.escalated && !staffHandled && (
         <p
           role="status"
-          className="text-status-escalated bg-status-escalated-tint mt-4 flex items-start gap-2 rounded-md px-3 py-2 text-sm"
+          className="bg-human-soft text-human-text mt-5 flex items-start gap-3 rounded-xl px-4 py-3 text-sm"
         >
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+          <Headset className="text-human mt-0.5 size-[18px] shrink-0" strokeWidth={1.75} aria-hidden="true" />
           {capabilities.handoffEnabled ? (
             <span>
-              Handed to a human —{" "}
-              {conversation.escalationReason ?? "no reason recorded"}.
+              <strong className="font-semibold">Handed to clinic staff.</strong>{" "}
+              {conversation.escalationReason
+                ? `Reason: ${conversation.escalationReason}.`
+                : "No reason was recorded."}
             </span>
           ) : (
             // Without a handoff process the agent still tells the patient
@@ -185,12 +215,10 @@ export default async function ConversationDetailPage({
             // repeat that back to staff as though it were done — the opposite
             // of what they need to know.
             <span>
-              This patient asked for a human
-              {conversation.escalationReason
-                ? ` — ${conversation.escalationReason}`
-                : ""}
-              . The agent said someone would follow up, but nobody is notified
-              automatically. Reply to them directly.
+              <strong className="font-semibold">This patient asked for a person</strong>
+              {conversation.escalationReason ? ` (${conversation.escalationReason})` : ""}. The
+              agent said someone would follow up, but nobody is notified automatically. Call or
+              message them back.
             </span>
           )}
         </p>
@@ -199,12 +227,20 @@ export default async function ConversationDetailPage({
       {/* Transcript and a 320px rail side by side; the rail stacks underneath
           below 1024px rather than squeezing the transcript. */}
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Card>
-          <CardContent className="py-4">
-            <h2 className="sr-only">Transcript</h2>
-            <Transcript messages={messages} />
-          </CardContent>
-        </Card>
+        <section
+          aria-labelledby="transcript-title"
+          className="bg-surface border-line min-w-0 rounded-xl border"
+        >
+          <header className="border-line flex items-baseline justify-between gap-3 border-b px-5 py-3.5">
+            <h2 id="transcript-title" className="text-ink text-[17px] leading-6 font-semibold">
+              Transcript
+            </h2>
+            <span className="text-ink-3 text-[13px]">Times in clinic local time</span>
+          </header>
+          <div className="px-5 py-5">
+            <Transcript messages={messages} timeZone={timeZone} />
+          </div>
+        </section>
 
         <MetadataRail
           conversation={conversation}
@@ -217,12 +253,13 @@ export default async function ConversationDetailPage({
           without returning to the list between every conversation. */}
       <nav
         aria-label="Adjacent conversations"
-        className="mt-5 flex items-center justify-between gap-3"
+        className="border-line mt-6 flex items-center justify-between gap-3 border-t pt-5"
       >
         {neighbors.previous ? (
           <Button variant="outline" size="sm" asChild>
             <Link href={`/conversations/${neighbors.previous.id}${listQuery}`}>
               <ChevronLeft />
+              <span className="text-ink-3 hidden sm:inline">Previous:</span>
               <span className="max-w-[12rem] truncate">
                 {neighbors.previous.patient.name}
               </span>
@@ -235,6 +272,7 @@ export default async function ConversationDetailPage({
         {neighbors.next ? (
           <Button variant="outline" size="sm" asChild>
             <Link href={`/conversations/${neighbors.next.id}${listQuery}`}>
+              <span className="text-ink-3 hidden sm:inline">Next:</span>
               <span className="max-w-[12rem] truncate">
                 {neighbors.next.patient.name}
               </span>

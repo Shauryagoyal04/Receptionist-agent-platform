@@ -39,23 +39,23 @@ export function SearchInput({ state }: { state: UrlFilterState }) {
   }, [value, apply]);
 
   return (
-    <div className="relative w-full sm:max-w-xs">
-      <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+    <div className="relative w-full lg:max-w-sm">
+      <Search className="text-ink-3 pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" aria-hidden="true" />
       <Input
         type="search"
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        placeholder="Name, doctor or phone digits"
+        placeholder="Search by patient, doctor or phone"
         aria-label="Search conversations by patient name, doctor or phone digits"
         aria-describedby="search-hint"
-        className="pr-8 pl-8"
+        className="h-9 pr-9 pl-9"
       />
       {value.length > 0 && (
         <button
           type="button"
           onClick={() => setValue("")}
           aria-label="Clear search"
-          className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
+          className="text-ink-3 hover:text-ink hover:bg-sunken absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-md transition-colors duration-(--dur-quick)"
         >
           <X className="size-4" />
         </button>

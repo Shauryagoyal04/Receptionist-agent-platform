@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PageHeader, PageShell } from "@/components/page-header";
+import { BackLink } from "@/components/clinic-data/back-link";
 import { RecordForm } from "@/components/clinic-data/record-forms";
 import { requireAdmin } from "@/lib/auth/session";
 import { isSystemEntityType } from "@/lib/clinic-data/model";
@@ -26,10 +27,17 @@ export default async function RecordPage({ params }: PageProps<"/data/[entityTyp
   const title = definition.titleField ? record.attributes[definition.titleField] : null;
 
   return (
-    <PageShell className="max-w-4xl">
+    <PageShell>
+      <BackLink href={`/data/${entityType}`}>{definition.label}</BackLink>
       <PageHeader
         title={typeof title === "string" && title ? title : definition.singularLabel}
-        description={`${definition.label}${record.isActive ? "" : " · inactive, hidden from the agent"}`}
+        description={
+          !record.isActive
+            ? "Inactive: kept here, but hidden from the agent."
+            : definition.agentEnabled
+              ? "The agent uses this from the next conversation after you save."
+              : "Staff-only. The agent doesn't read this page."
+        }
       />
       <div className="mt-6">
         <RecordForm
@@ -38,6 +46,7 @@ export default async function RecordPage({ params }: PageProps<"/data/[entityTyp
           singularLabel={definition.singularLabel}
           fields={definition.fields}
           initial={{ id: record.id, isActive: record.isActive, attributes: record.attributes }}
+          agentEnabled={definition.agentEnabled}
         />
       </div>
     </PageShell>

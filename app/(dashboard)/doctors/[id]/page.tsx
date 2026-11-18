@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PageHeader, PageShell } from "@/components/page-header";
+import { BackLink } from "@/components/clinic-data/back-link";
 import { DoctorForm } from "@/components/clinic-data/record-forms";
 import { requireAdmin } from "@/lib/auth/session";
 import { getDoctor } from "@/lib/data/clinic-records";
@@ -20,10 +21,15 @@ export default async function DoctorPage({ params }: PageProps<"/doctors/[id]">)
   if (!doctor) notFound();
 
   return (
-    <PageShell className="max-w-4xl">
+    <PageShell>
+      <BackLink href="/doctors">Doctors</BackLink>
       <PageHeader
         title={doctor.name ? `Dr. ${doctor.name}` : "Doctor"}
-        description={doctor.isActive ? "Active: offered to patients." : "Inactive: hidden from patients."}
+        description={
+          doctor.isActive
+            ? "Offered to patients. Changes apply from the next conversation."
+            : "Hidden from patients. Turn on “Taking bookings” to offer them again."
+        }
       />
       <div className="mt-6">
         <DoctorForm

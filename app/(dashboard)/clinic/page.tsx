@@ -20,13 +20,13 @@ export default async function ClinicPage() {
   ]);
 
   return (
-    <PageShell className="max-w-4xl">
+    <PageShell>
       <PageHeader
         title="Clinic"
         description={
           clinic.exists
-            ? "What the agent tells patients about the clinic."
-            : "No clinic record yet. Saving this form creates it."
+            ? "What the agent tells patients about the clinic. Check the preview to hear it the way patients will."
+            : "No clinic details yet. Fill these in and save, and the agent starts using them."
         }
       />
       <div className="mt-6">

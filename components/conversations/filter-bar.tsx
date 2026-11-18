@@ -38,7 +38,7 @@ export function FilterBar({
   const active = hasActiveUrlFilters(state);
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
       <SearchInput state={state} />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -55,7 +55,7 @@ export function FilterBar({
             sit there as a dead control on first load. This one also clears
             the search box and the date range, which the menu does not. */}
         {active && (
-          <Button variant="ghost" size="sm" className="h-8" onClick={clear}>
+          <Button variant="ghost" onClick={clear}>
             <X />
             Clear
           </Button>

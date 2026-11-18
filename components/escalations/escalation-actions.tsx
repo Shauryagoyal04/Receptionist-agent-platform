@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Hand, Loader2 } from "lucide-react";
+import { Check, CircleAlert, Hand, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -71,16 +71,16 @@ export function EscalationActions({
   return (
     <div className="flex flex-col gap-2">
       {status === "open" && !resolving && (
-        <Button size="sm" variant="outline" onClick={onClaim} disabled={isPending}>
+        <Button variant="outline" onClick={onClaim} disabled={isPending}>
           {isPending ? <Loader2 className="animate-spin" /> : <Hand />}
-          Claim
+          I&apos;ll take this
         </Button>
       )}
 
       {claimOnly ? null : resolving ? (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={`resolve-note-${escalationId}`} className="text-xs">
-            Note (optional)
+        <div className="bg-sunken/60 md-fade flex flex-col gap-2 rounded-[10px] p-3">
+          <Label htmlFor={`resolve-note-${escalationId}`} className="text-ink-2 text-[13px]">
+            What happened?
           </Label>
           <Textarea
             id={`resolve-note-${escalationId}`}
@@ -89,13 +89,17 @@ export function EscalationActions({
             value={note}
             disabled={isPending}
             onChange={(event) => setNote(event.target.value)}
-            placeholder="What happened, for whoever reads this next."
+            placeholder="Called back, booked for Monday 10 AM."
             className="resize-y text-sm"
+            aria-describedby={`resolve-hint-${escalationId}`}
           />
+          <p id={`resolve-hint-${escalationId}`} className="text-ink-3 text-xs">
+            Optional. The next person on the desk reads it.
+          </p>
           <div className="flex gap-2">
             <Button size="sm" onClick={onResolve} disabled={isPending} className="flex-1">
               {isPending ? <Loader2 className="animate-spin" /> : <Check />}
-              Resolve
+              Mark resolved
             </Button>
             <Button
               size="sm"
@@ -109,7 +113,6 @@ export function EscalationActions({
         </div>
       ) : (
         <Button
-          size="sm"
           variant="outline"
           onClick={() => setResolving(true)}
           disabled={isPending}
@@ -120,7 +123,8 @@ export function EscalationActions({
       )}
 
       {error !== null && (
-        <p role="alert" className="text-status-escalated text-xs">
+        <p role="alert" className="text-danger-text flex items-start gap-1.5 text-[13px]">
+          <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
           {error}
         </p>
       )}

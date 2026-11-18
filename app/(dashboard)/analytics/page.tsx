@@ -1,43 +1,49 @@
 import type { Metadata } from "next";
-import { TriangleAlert } from "lucide-react";
+import Link from "next/link";
+import {
+  CalendarCheck,
+  Headset,
+  Info,
+  MessagesSquare,
+  Timer,
+} from "lucide-react";
 import { z } from "zod";
 
 import { PageHeader, PageShell } from "@/components/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { KpiCard } from "@/components/analytics/kpi-card";
+import { ActivityTiles, type ActivityTile } from "@/components/analytics/activity-tiles";
+import { BookingLead } from "@/components/analytics/booking-lead";
+import { ChannelSplit } from "@/components/analytics/channel-split";
+import { HoursChart } from "@/components/analytics/charts";
+import { DotTimeline, SampleVolume } from "@/components/analytics/dot-timeline";
+import { VOLUME_HEIGHT, formatDayKey, formatMetric, formatShare } from "@/components/analytics/format";
+import { IntentBars } from "@/components/analytics/intent-bars";
 import { OutcomeBar } from "@/components/analytics/outcome-bar";
-import { ChartFrame } from "@/components/analytics/chart-frame";
-import {
-  ChannelSplit,
-  HoursChart,
-  IntentChart,
-  SentimentChart,
-  VolumeChart,
-} from "@/components/analytics/charts";
-import {
-  EscalationTable,
-  ToolReliabilityTable,
-  ViewAllLink,
-} from "@/components/analytics/tables";
+import { Panel, PanelLink } from "@/components/analytics/panel";
 import { RangePicker } from "@/components/analytics/range-picker";
+import { RecentConversations } from "@/components/analytics/recent-conversations";
+import { SetupGuide, type SetupStep } from "@/components/analytics/setup-guide";
+import { VolumeChart } from "@/components/analytics/volume-chart";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getServerEnv } from "@/lib/env";
-import { getConversationsInRange } from "@/lib/data/conversations";
-import {
-  aggregate,
-  buildKpis,
-  precedingRange,
-} from "@/lib/analytics/aggregate";
+import { getClinicRecord, listDoctors } from "@/lib/data/clinic-records";
+import { clinicHasAnyConversations, getConversationsInRange } from "@/lib/data/conversations";
+import { aggregate, buildKpis, precedingRange, type KpiId } from "@/lib/analytics/aggregate";
+import { closedWeekdays } from "@/lib/analytics/closed-days";
 import {
   addDaysToDateKey,
   daysBetweenKeys,
-  formatInZone,
   isDateOnly,
   zonedEndOfDay,
   zonedStartOfDay,
   zonedToday,
 } from "@/lib/time";
-import { INTENT_LABELS, handoffCopy } from "@/lib/types";
+import {
+  OUTCOMES,
+  handoffCopy,
+  outcomeLabels,
+  type Channel,
+  type Outcome,
+} from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Analytics",
@@ -45,25 +51,27 @@ export const metadata: Metadata = {
 };
 
 const DEFAULT_DAYS = 30;
+/** Below this many conversations the trend chart becomes a dot timeline. */
+const TREND_MIN = 5;
 const dateKey = z.string().refine(isDateOnly);
+/** WhatsApp first: it is the main channel, so it sits on the baseline. */
+const CHANNEL_ORDER: Channel[] = ["whatsapp", "voice", "web_chat"];
 
 function first(value: string | string[] | undefined): string | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
 
-export default async function AnalyticsPage({
-  searchParams,
-}: PageProps<"/analytics">) {
+export default async function AnalyticsPage({ searchParams }: PageProps<"/analytics">) {
   const user = await getCurrentUser();
   if (!user) return null;
 
   const { DEFAULT_CLINIC_TIMEZONE: timeZone, capabilities } = getServerEnv();
   const raw = await searchParams;
+  const isAdmin = user.role === "admin";
 
   const today = zonedToday(timeZone);
   const parsedFrom = dateKey.safeParse(first(raw.from));
   const parsedTo = dateKey.safeParse(first(raw.to));
-
   let from = parsedFrom.success ? parsedFrom.data : addDaysToDateKey(today, -(DEFAULT_DAYS - 1));
   let to = parsedTo.success ? parsedTo.data : today;
   // A reversed range is a typo, not an empty result set.
@@ -72,10 +80,9 @@ export default async function AnalyticsPage({
   const previous = precedingRange(from, to);
   const rangeDays = daysBetweenKeys(from, to);
 
-  // Both periods are fetched, then both go through the same pure aggregation.
-  // Keeping fetch and compute separate is what lets pre-aggregated rollups
-  // replace this fetcher later without touching a single chart.
-  const [currentRows, previousRows] = await Promise.all([
+  // Clinic details and doctors only feed the closed-day shading and the setup
+  // guide; neither is worth failing the page for.
+  const [currentRows, previousRows, clinic, doctors, hasAny] = await Promise.all([
     getConversationsInRange(
       user.clinicId,
       zonedStartOfDay(from, timeZone) ?? from,
@@ -86,193 +93,296 @@ export default async function AnalyticsPage({
       zonedStartOfDay(previous.from, timeZone) ?? previous.from,
       zonedEndOfDay(previous.to, timeZone) ?? previous.to,
     ),
+    getClinicRecord(user.clinicId).catch(() => null),
+    listDoctors(user.clinicId).catch(() => null),
+    clinicHasAnyConversations(user.clinicId).catch(() => true),
   ]);
 
   const summary = aggregate(currentRows.conversations, { from, to, timeZone });
-  const priorSummary = aggregate(previousRows.conversations, {
+  const prior = aggregate(previousRows.conversations, {
     from: previous.from,
     to: previous.to,
     timeZone,
   });
+  const kpis = buildKpis(summary, prior, { handoffEnabled: capabilities.handoffEnabled });
+  const delta = (id: KpiId) => kpis.find((kpi) => kpi.id === id)?.delta ?? null;
 
-  const kpis = buildKpis(summary, priorSummary, {
-    handoffEnabled: capabilities.handoffEnabled,
-  });
   const handoff = handoffCopy(capabilities.handoffEnabled);
-  const [headline, ...rest] = kpis;
-  const isEmpty = summary.total === 0;
-  const periodLabel = `previous ${rangeDays} days`;
+  const labels = outcomeLabels(capabilities.handoffEnabled);
+  const closed = closedWeekdays(clinic?.timings ?? null);
+
+  // Links into the lists behind each number, scoped to this date range.
+  const list = (extra: Record<string, string> = {}) =>
+    `/conversations?${new URLSearchParams({ from, to, ...extra }).toString()}`;
+  const outcomeHref = Object.fromEntries(
+    OUTCOMES.map((outcome) => [outcome, list({ outcome })]),
+  ) as Record<Outcome, string>;
+  const humanHref = capabilities.handoffEnabled ? "/escalations" : outcomeHref.escalated;
+
+  // Channels turned on, plus any that still have history in this range.
+  const channelCount = (channel: Channel) =>
+    summary.byChannel.find((entry) => entry.key === channel)?.count ?? 0;
+  const channels = CHANNEL_ORDER.filter(
+    (channel) => capabilities.enabledChannels.includes(channel) || channelCount(channel) > 0,
+  );
+  const showChannels = channels.length > 1;
+
+  const total = summary.total;
+  const isNewClinic = !hasAny;
+  const noComparison = total > 0 && prior.total === 0;
+
+  const tiles: ActivityTile[] = [
+    {
+      id: "handled",
+      label: "Conversations handled",
+      icon: MessagesSquare,
+      meaning: "agent",
+      value: total,
+      kind: "count",
+      delta: delta("handled"),
+      increaseIsGood: true,
+      series: summary.days.map((d) => d.total),
+      context: showChannels
+        ? channels.map((c) => `${formatMetric("count", channelCount(c))} on ${channelName(c)}`).join(" · ")
+        : `${summary.avgMessagesPerConversation.toFixed(1)} messages per conversation`,
+      href: list(),
+    },
+    {
+      id: "booked",
+      label: "Booked",
+      icon: CalendarCheck,
+      meaning: "booked",
+      value: summary.booked,
+      kind: "count",
+      delta: delta("booked"),
+      increaseIsGood: true,
+      series: summary.days.map((d) => d.booked),
+      context:
+        total === 0
+          ? "Appointments the agent confirmed"
+          : `${formatShare(summary.booked / total)} of all conversations`,
+      href: outcomeHref.appointment_booked,
+    },
+    {
+      id: "escalated",
+      label: "Asked for a human",
+      icon: Headset,
+      meaning: "human",
+      value: summary.escalated,
+      kind: "count",
+      delta: delta("escalated"),
+      increaseIsGood: false,
+      series: summary.days.map((d) => d.escalated),
+      context:
+        total === 0
+          ? "Chats the agent passed to staff"
+          : summary.escalated === 0
+            ? "The agent handled every chat itself"
+            : `${formatMetric("count", summary.escalated)} of ${formatMetric("count", total)} chats`,
+      href: humanHref,
+    },
+    {
+      id: "medianDuration",
+      label: "Median handling time",
+      icon: Timer,
+      meaning: "answered",
+      value: summary.medianDurationSec,
+      kind: "duration",
+      delta: delta("medianDuration"),
+      increaseIsGood: false,
+      series: summary.days.map((d) => d.medianDurationSec),
+      context:
+        total === 0
+          ? "From first message to last"
+          : `About ${Math.round(summary.avgMessagesPerConversation)} messages each`,
+      href: list(),
+    },
+  ];
+
+  const setupSteps: SetupStep[] = [
+    {
+      id: "clinic",
+      label: "Add clinic name, phone, timings and address",
+      done: Boolean(clinic?.clinicName && clinic.phone && clinic.timings && clinic.address),
+      href: isAdmin ? "/clinic" : undefined,
+      hrefLabel: "Clinic",
+    },
+    {
+      id: "doctors",
+      label: "Add at least one doctor with working days",
+      done: (doctors?.length ?? 0) > 0,
+      href: isAdmin ? "/doctors/new" : undefined,
+      hrefLabel: "Add doctor",
+    },
+    {
+      id: "first",
+      label: "Send a test WhatsApp message to the clinic number",
+      done: hasAny,
+    },
+  ];
+
+  const allNoResolution =
+    total > 0 && summary.byOutcome.find((o) => o.key === "no_resolution")?.count === total;
 
   return (
     <PageShell>
-      <PageHeader
-        title="Analytics"
-        description={`How the agent performed over ${rangeDays} days, in the clinic's local time.`}
-      >
-        <RangePicker from={from} to={to} timeZone={timeZone} />
+      <PageHeader title="Analytics" description="How the agent performed, in the clinic's local time.">
+        <div className="flex flex-col items-end gap-2">
+          <RangePicker from={from} to={to} timeZone={timeZone} />
+          {noComparison && (
+            <p className="text-ink-3 flex items-center gap-1.5 text-[13px]">
+              <Info className="size-3.5 shrink-0" aria-hidden="true" />
+              No conversations in the {rangeDays} days before {formatDayKey(from, timeZone)}, so
+              changes aren&apos;t shown.
+            </p>
+          )}
+        </div>
       </PageHeader>
 
       {currentRows.truncated && (
         <p
           role="status"
-          className="text-status-abandoned bg-status-abandoned-tint mt-4 flex items-start gap-2 rounded-md px-3 py-2 text-sm"
+          className="bg-sunken text-ink-2 mt-5 flex items-start gap-2 rounded-[10px] px-3.5 py-2.5 text-[13px]"
         >
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          <span>
-            This range holds more conversations than the page reads at once, so
-            the figures below are based on the most recent slice. Narrow the
-            range for exact numbers.
-          </span>
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          This range has more conversations than the page reads at once, so these figures use the
+          most recent ones. Pick a shorter range for exact numbers.
         </p>
       )}
 
-      {isEmpty ? (
-        <Card className="mt-6">
-          <CardContent className="py-16 text-center">
-            <p className="font-medium">No conversations in this range</p>
-            <p className="text-muted-foreground mx-auto mt-1 max-w-md text-sm">
-              Try a wider date range, run{" "}
-              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
-                npm run seed
-              </code>{" "}
-              for demo data, or connect the agent to the ingestion endpoint.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* The headline number gets its own column and visual weight; the
-              other five sit beside it. */}
-          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <KpiCard kpi={headline} emphasis periodLabel={periodLabel} />
-            <div className="grid gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(3,minmax(0,1fr))]">
-              {rest.map((kpi) => (
-                <KpiCard key={kpi.id} kpi={kpi} periodLabel={periodLabel} />
-              ))}
-            </div>
-          </div>
+      <div className="mt-6 flex flex-col gap-6">
+        {isNewClinic && <SetupGuide steps={setupSteps} />}
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
-            <ChartFrame
-              title="Conversation volume"
-              description={`Daily totals, with ${handoff.seriesLabel.toLowerCase()} overlaid`}
-              isEmpty={false}
-              className="lg:col-span-2"
-              tableCaption="Conversations and escalations per day"
-              tableRows={summary.days.map((bucket) => ({
-                label: formatInZone(`${bucket.day}T12:00:00.000Z`, timeZone, {
-                  dateStyle: "medium",
-                }),
-                value: `${bucket.total} conversations, ${bucket.escalated} ${handoff.seriesLabel.toLowerCase()}`,
-              }))}
-            >
-              <VolumeChart
-                days={summary.days}
+        {/* Lead + activity */}
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <BookingLead
+            rate={summary.bookingCompletionRate}
+            funnel={summary.bookingFunnel}
+            delta={delta("bookingRate")}
+            bookedHref={outcomeHref.appointment_booked}
+          />
+          <ActivityTiles tiles={tiles} />
+        </div>
+
+        {/* Volume, with the channel split beside it when there's more than one */}
+        <div className={showChannels ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]" : ""}>
+          {showChannels && (
+            <Panel title="By channel" description="Where patients reached the agent">
+              <ChannelSplit
+                data={summary.byChannel}
+                channels={channels}
+                hrefFor={(channel) => list({ channel })}
+              />
+            </Panel>
+          )}
+          <Panel
+            title="Conversation volume"
+            description={
+              closed.length > 0
+                ? `Per day, by channel. Amber dots: ${handoff.seriesLabel.toLowerCase()}. Shaded: clinic closed.`
+                : `Per day, by channel. Amber dots: ${handoff.seriesLabel.toLowerCase()}.`
+            }
+            srTable={{
+              caption: "Conversations per day",
+              rows: summary.days.map((d) => ({
+                label: formatDayKey(d.day, timeZone),
+                value: `${d.total} conversations, ${d.escalated} ${handoff.seriesLabel.toLowerCase()}`,
+              })),
+            }}
+          >
+            {total === 0 ? (
+              <SampleVolume height={VOLUME_HEIGHT} />
+            ) : total < TREND_MIN ? (
+              <DotTimeline
+                conversations={summary.recentConversations}
+                from={from}
+                to={to}
                 timeZone={timeZone}
-                escalationLabel={handoff.seriesLabel}
+                height={VOLUME_HEIGHT}
               />
-            </ChartFrame>
-
-            <Card className="gap-0 py-0">
-              <CardHeader className="px-4 pt-4 pb-0">
-                <CardTitle className="text-sm font-medium">Outcomes</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pt-3 pb-4">
-                <OutcomeBar
-                  data={summary.byOutcome}
-                  handoffEnabled={capabilities.handoffEnabled}
+            ) : (
+              <div aria-hidden="true">
+                <VolumeChart
+                  days={summary.days}
+                  channels={channels.length > 0 ? channels : ["whatsapp"]}
+                  closedWeekdays={closed}
+                  today={today}
+                  timeZone={timeZone}
+                  humanLabel={handoff.seriesLabel}
                 />
-              </CardContent>
-            </Card>
-
-            <ChartFrame
-              title="Intent distribution"
-              isEmpty={false}
-              tableCaption="Conversations by primary intent"
-              tableRows={summary.byIntent
-                .filter((entry) => entry.count > 0)
-                .sort((a, b) => b.count - a.count)
-                .map((entry) => ({
-                  label: INTENT_LABELS[entry.key],
-                  value: `${entry.count} (${(entry.share * 100).toFixed(1)}%)`,
-                }))}
-            >
-              <IntentChart data={summary.byIntent} />
-            </ChartFrame>
-
-            <ChartFrame
-              title="Busiest hours"
-              description="Clinic local time — what staffing follows"
-              isEmpty={false}
-              tableCaption="Conversations by hour of day, clinic local time"
-              tableRows={summary.hours.map((count, hour) => ({
-                label: `${String(hour).padStart(2, "0")}:00`,
-                value: `${count} conversations`,
-              }))}
-            >
-              <HoursChart hours={summary.hours} />
-            </ChartFrame>
-
-            <ChartFrame
-              title="Negative sentiment"
-              description="Share of conversations per day"
-              isEmpty={false}
-              tableCaption="Share of conversations ending in negative sentiment, per day"
-              tableRows={summary.days.map((bucket) => ({
-                label: formatInZone(`${bucket.day}T12:00:00.000Z`, timeZone, {
-                  dateStyle: "medium",
-                }),
-                value:
-                  bucket.total > 0
-                    ? `${((bucket.negative / bucket.total) * 100).toFixed(1)}% (${bucket.negative} of ${bucket.total})`
-                    : "no conversations",
-              }))}
-            >
-              <SentimentChart days={summary.days} timeZone={timeZone} />
-            </ChartFrame>
-
-            {/* A single channel renders one 100% bar, which is just noise. */}
-            {capabilities.showChannelUi && (
-              <Card className="gap-0 py-0 lg:col-span-2">
-                <CardHeader className="px-4 pt-4 pb-0">
-                  <CardTitle className="text-sm font-medium">Channels</CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pt-3 pb-4">
-                  <ChannelSplit data={summary.byChannel} />
-                </CardContent>
-              </Card>
+              </div>
             )}
-          </div>
+          </Panel>
+        </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))]">
-            <Card className="gap-0 overflow-hidden py-0">
-              <CardHeader className="px-4 py-3">
-                <CardTitle className="text-sm font-medium">
-                  {handoff.tableTitle}
-                </CardTitle>
-                <ViewAllLink
-                  href="/conversations?outcome=escalated"
-                  label={handoff.tableLink}
-                />
-              </CardHeader>
-              <EscalationTable
-                rows={summary.recentEscalations}
-                emptyLabel={handoff.tableEmpty}
-                actionable={!capabilities.handoffEnabled}
-              />
-            </Card>
+        {/* How chats ended, and what they were about */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Panel title="How chats ended" description="Click an outcome to see those conversations">
+            {total === 0 ? (
+              <div>
+                <div className="bg-sunken h-3 rounded-full" />
+                <p className="text-ink-3 mt-4 text-[13px]">
+                  Booked, rescheduled, answered or passed to staff: each chat&apos;s outcome shows
+                  here once it ends.
+                </p>
+              </div>
+            ) : (
+              <>
+                <OutcomeBar data={summary.byOutcome} labels={labels} hrefFor={outcomeHref} />
+                {allNoResolution && (
+                  <p className="text-ink-3 mt-4 text-[13px]">
+                    None of these chats reached an outcome.{" "}
+                    <Link href={outcomeHref.no_resolution} className="text-agent-text font-medium underline-offset-2 hover:underline">
+                      Open them to see where they stopped
+                    </Link>
+                    .
+                  </p>
+                )}
+              </>
+            )}
+          </Panel>
 
-            <Card className="gap-0 overflow-hidden py-0">
-              <CardHeader className="px-4 py-3">
-                <CardTitle className="text-sm font-medium">
-                  Tool reliability
-                </CardTitle>
-              </CardHeader>
-              <ToolReliabilityTable rows={summary.toolReliability} />
-            </Card>
-          </div>
-        </>
-      )}
+          <Panel title="What patients asked about">
+            <IntentBars data={summary.byIntent} hrefFor={(intent) => list({ intent })} />
+          </Panel>
+        </div>
+
+        {/* Detail: the latest chats, and when the desk is busiest */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <Panel
+            title="Recent conversations"
+            action={total > 0 ? <PanelLink href={list()}>View all</PanelLink> : undefined}
+          >
+            <RecentConversations rows={summary.recentConversations} labels={labels} timeZone={timeZone} />
+          </Panel>
+
+          <Panel
+            title="Busiest hours"
+            description="Clinic local time"
+            srTable={{
+              caption: "Conversations by hour of day",
+              rows: summary.hours
+                .map((count, hour) => ({ label: `${hour}:00`, value: `${count} conversations` }))
+                .filter((row) => !row.value.startsWith("0 ")),
+            }}
+          >
+            {total < TREND_MIN ? (
+              <p className="text-ink-3 text-[13px]">
+                After a few more conversations this shows when patients usually get in touch, so you
+                can plan who&apos;s at the desk.
+              </p>
+            ) : (
+              <div aria-hidden="true">
+                <HoursChart hours={summary.hours} />
+              </div>
+            )}
+          </Panel>
+        </div>
+      </div>
     </PageShell>
   );
+}
+
+function channelName(channel: Channel): string {
+  return channel === "whatsapp" ? "WhatsApp" : channel === "voice" ? "voice" : "web chat";
 }

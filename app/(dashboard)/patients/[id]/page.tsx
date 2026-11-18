@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { PageHeader, PageShell } from "@/components/page-header";
+import { BackLink } from "@/components/clinic-data/back-link";
 import { PatientForm } from "@/components/clinic-data/record-forms";
 import { requireAdmin } from "@/lib/auth/session";
 import { getPatient } from "@/lib/data/clinic-records";
@@ -20,8 +21,12 @@ export default async function PatientPage({ params }: PageProps<"/patients/[id]"
   if (!patient) notFound();
 
   return (
-    <PageShell className="max-w-4xl">
-      <PageHeader title={patient.name || "Patient"} />
+    <PageShell>
+      <BackLink href="/patients">Patients</BackLink>
+      <PageHeader
+        title={patient.name || "Patient"}
+        description="Kept up to date by the agent when this patient books."
+      />
       <div className="mt-6">
         <PatientForm
           key={patient.updatedAt ?? patient.id}

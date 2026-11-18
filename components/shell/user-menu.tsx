@@ -38,18 +38,18 @@ export function UserMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "hover:bg-sidebar-accent/60 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
+          "hover:bg-sunken flex w-full items-center gap-2.5 rounded-[10px] px-2 py-2 text-left transition-colors duration-(--dur-quick)",
           className,
         )}
       >
         <Avatar name={name} photoURL={photoURL} />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{name}</span>
-          <span className="text-muted-foreground block truncate text-xs">
+          <span className="text-ink block truncate text-sm font-medium">{name}</span>
+          <span className="text-ink-3 block truncate text-xs">
             {USER_ROLE_LABELS[role]}
           </span>
         </span>
-        <ChevronsUpDown className="text-muted-foreground size-3.5 shrink-0" />
+        <ChevronsUpDown className="text-ink-4 size-3.5 shrink-0" />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align={align} className="w-56">
@@ -90,14 +90,14 @@ function Avatar({
     return (
       // A plain <img>: these are arbitrary Google avatar URLs, and adding every
       // possible host to next.config images.remotePatterns is not worth it for
-      // a 24px decoration.
+      // a 28px decoration.
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={photoURL}
         alt=""
-        width={24}
-        height={24}
-        className="size-6 shrink-0 rounded-full object-cover"
+        width={28}
+        height={28}
+        className="size-7 shrink-0 rounded-full object-cover"
       />
     );
   }
@@ -105,7 +105,7 @@ function Avatar({
   return (
     <span
       aria-hidden="true"
-      className="bg-accent text-accent-foreground flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold"
+      className="bg-agent-soft text-agent-text flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
     >
       {initialsOf(name)}
     </span>

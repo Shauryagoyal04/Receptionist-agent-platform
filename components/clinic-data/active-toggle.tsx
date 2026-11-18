@@ -22,10 +22,15 @@ export function ActiveToggle({
   target,
   isActive,
   label,
+  onText,
+  offText,
 }: {
   target: ActiveTarget;
   isActive: boolean;
   label: string;
+  /** Optional visible state text beside the switch, e.g. "Offered to patients". */
+  onText?: string;
+  offText?: string;
 }) {
   const [optimistic, setOptimistic] = useOptimistic(isActive);
   const [isPending, startTransition] = useTransition();
@@ -41,12 +46,21 @@ export function ActiveToggle({
     });
   }
 
-  return (
+  const control = (
     <Switch
       checked={optimistic}
       disabled={isPending}
       onCheckedChange={onChange}
       aria-label={`${label}: ${optimistic ? "active" : "inactive"}`}
     />
+  );
+  if (!onText) return control;
+  return (
+    <span className="inline-flex items-center gap-2.5">
+      {control}
+      <span aria-hidden="true" className={optimistic ? "text-ink-2 text-[13px]" : "text-ink-3 text-[13px]"}>
+        {optimistic ? onText : (offText ?? onText)}
+      </span>
+    </span>
   );
 }

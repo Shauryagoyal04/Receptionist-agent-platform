@@ -7,10 +7,17 @@ import { Skeleton } from "@/components/ui/skeleton";
  */
 export default function DashboardLoading() {
   return (
-    <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-8 sm:py-8">
-      <Skeleton className="h-7 w-44" />
+    <main
+      className="w-full max-w-[1280px] px-4 py-6 sm:px-8 sm:py-8"
+      aria-busy="true"
+      aria-label="Loading"
+    >
+      <Skeleton className="h-8 w-44" />
       <Skeleton className="mt-2 h-4 w-72" />
-      <Skeleton className="mt-6 h-64 w-full" />
+      <div className="bg-surface border-line mt-6 rounded-xl border p-5">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="mt-4 h-56 w-full" />
+      </div>
     </main>
   );
 }

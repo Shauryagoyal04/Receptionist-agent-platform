@@ -1,11 +1,15 @@
 "use client";
 
-import { CalendarRange } from "lucide-react";
+import * as React from "react";
+import { Popover } from "radix-ui";
+import { CalendarDays } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatDayKey } from "@/components/analytics/format";
 import { useFilterNav } from "@/components/conversations/use-filter-nav";
 import { cn } from "@/lib/utils";
+import { zonedToday } from "@/lib/time";
 import {
   RANGE_PRESETS,
   activePreset,
@@ -14,13 +18,11 @@ import {
 } from "@/lib/conversations/params";
 
 /**
- * Date range control: three presets plus two native date inputs for a custom
- * range.
- *
- * Native `<input type="date">` rather than a calendar widget — it is
- * keyboard-accessible and localized for free, works on a phone, and adds no
- * dependency. The dates are the clinic's calendar days; the server converts
- * them to UTC instants at the edges of the day.
+ * Date range in one control: all time, three presets, and custom dates in a
+ * popover. Native `<input type="date">` inside the popover — keyboard
+ * accessible and localized for free, works on a phone, no dependency. The
+ * dates are the clinic's calendar days; the server converts them to UTC
+ * instants at the edges of the day.
  */
 export function DateRangePicker({
   state,
@@ -36,62 +38,123 @@ export function DateRangePicker({
 }) {
   const { apply } = useFilterNav(state);
   const current = activePreset(state, timeZone);
+  const allTime = !state.from && !state.to;
+  const isCustom = !allTime && current === null;
+  const today = zonedToday(timeZone);
+
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState({ from: state.from, to: state.to });
+
+  const options: Array<{ key: string; label: string; long: string; active: boolean; onClick: () => void }> = [
+    {
+      key: "all",
+      label: "All",
+      long: "All time",
+      active: allTime,
+      onClick: () => apply({ from: "", to: "" }),
+    },
+    ...RANGE_PRESETS.map((preset) => ({
+      key: String(preset.days),
+      label: `${preset.days}d`,
+      long: `Last ${preset.label}`,
+      active: current === preset.days,
+      onClick: () => apply(presetRange(preset.days, timeZone)),
+    })),
+  ];
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div
-        role="group"
-        aria-label="Date range presets"
-        className="flex items-center gap-0.5 rounded-md border p-0.5"
-      >
-        {RANGE_PRESETS.map((preset) => (
+    <div className="bg-surface border-line flex h-9 items-center rounded-[10px] border p-0.5">
+      <div role="group" aria-label="Date range" className="flex">
+        {options.map((option) => (
           <button
-            key={preset.days}
+            key={option.key}
             type="button"
-            aria-pressed={current === preset.days}
-            onClick={() => apply(presetRange(preset.days, timeZone))}
+            aria-pressed={option.active}
+            aria-label={option.long}
+            onClick={option.onClick}
             className={cn(
-              "rounded-sm px-2 py-1 text-xs transition-colors",
-              current === preset.days
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+              "h-8 min-w-11 rounded-lg px-2.5 text-[13px] font-medium transition-colors duration-(--dur-quick)",
+              option.active ? "bg-ink text-surface" : "text-ink-3 hover:text-ink",
             )}
           >
-            {preset.label}
+            {option.label}
           </button>
         ))}
       </div>
 
-      <div className="flex items-center gap-1.5">
-        <CalendarRange className="text-muted-foreground size-4 shrink-0" />
-        <Input
-          type="date"
-          value={state.from}
-          max={state.to || undefined}
-          onChange={(event) => apply({ from: event.target.value })}
-          aria-label="From date"
-          className="h-8 w-[9.5rem] text-xs"
-        />
-        <span className="text-muted-foreground text-xs">to</span>
-        <Input
-          type="date"
-          value={state.to}
-          min={state.from || undefined}
-          onChange={(event) => apply({ to: event.target.value })}
-          aria-label="To date"
-          className="h-8 w-[9.5rem] text-xs"
-        />
-      </div>
+      <span className="bg-line mx-1 h-5 w-px" aria-hidden="true" />
 
-      {(state.from || state.to) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => apply({ from: "", to: "" })}
-        >
-          All time
-        </Button>
-      )}
+      <Popover.Root
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (next) setDraft({ from: state.from, to: state.to });
+        }}
+      >
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors duration-(--dur-quick)",
+              isCustom ? "bg-ink text-surface" : "text-ink-2 hover:bg-sunken",
+            )}
+          >
+            <CalendarDays className="size-4" aria-hidden="true" />
+            <span className="tnum">
+              {allTime
+                ? "Pick dates"
+                : `${formatDayKey(state.from, timeZone)} – ${formatDayKey(state.to, timeZone)}`}
+            </span>
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="end"
+            sideOffset={8}
+            className="bg-surface border-line z-50 w-72 rounded-xl border p-4 shadow-(--shadow-pop)"
+          >
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!draft.from || !draft.to) return;
+                const [a, b] =
+                  draft.from <= draft.to ? [draft.from, draft.to] : [draft.to, draft.from];
+                apply({ from: a, to: b });
+                setOpen(false);
+              }}
+            >
+              <p className="text-ink text-sm font-medium">Custom dates</p>
+              <p className="text-ink-3 mt-0.5 text-[13px]">In the clinic&apos;s local time.</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="text-ink-2 flex flex-col gap-1 text-[13px]">
+                  From
+                  <Input
+                    type="date"
+                    value={draft.from}
+                    max={draft.to || today}
+                    onChange={(event) => setDraft((d) => ({ ...d, from: event.target.value }))}
+                    className="h-9 text-[13px]"
+                  />
+                </label>
+                <label className="text-ink-2 flex flex-col gap-1 text-[13px]">
+                  To
+                  <Input
+                    type="date"
+                    value={draft.to}
+                    min={draft.from || undefined}
+                    max={today}
+                    onChange={(event) => setDraft((d) => ({ ...d, to: event.target.value }))}
+                    className="h-9 text-[13px]"
+                  />
+                </label>
+              </div>
+              <Button type="submit" className="mt-4 w-full" disabled={!draft.from || !draft.to}>
+                Show these dates
+              </Button>
+            </form>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
 }

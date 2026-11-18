@@ -1,26 +1,29 @@
-import { PageShell } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, PageShell } from "@/components/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** Shaped like the real cards: channel well, name, number, reason, actions. */
 export default function EscalationsLoading() {
   return (
     <PageShell>
-      <Skeleton className="h-7 w-40" />
-      <Skeleton className="mt-2 h-4 w-96 max-w-full" />
-      <div className="mt-5 flex gap-1">
-        <Skeleton className="h-8 w-16" />
-        <Skeleton className="h-8 w-20" />
-        <Skeleton className="h-8 w-20" />
-      </div>
-      <div className="mt-4 flex flex-col gap-3">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <Card key={index} className="py-0">
-            <CardContent className="flex flex-col gap-2 py-4">
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="h-4 w-36" />
-              <Skeleton className="h-4 w-full max-w-md" />
-            </CardContent>
-          </Card>
+      <PageHeader
+        title="Escalations"
+        description="Patients who asked for a person. Call voice callers back; reply to WhatsApp chats from the conversation."
+      />
+      <Skeleton className="mt-6 h-10 w-72 rounded-[10px]" />
+      <div className="mt-5 flex flex-col gap-3" aria-busy="true" aria-label="Loading escalations">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="bg-surface border-line flex gap-5 rounded-xl border p-5">
+            <Skeleton className="size-10 shrink-0 rounded-[10px]" />
+            <div className="flex-1">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="mt-2 h-4 w-36" />
+              <Skeleton className="mt-3 h-10 w-full max-w-lg rounded-[10px]" />
+            </div>
+            <div className="hidden w-60 flex-col gap-2 sm:flex">
+              <Skeleton className="h-9 rounded-[10px]" />
+              <Skeleton className="h-9 rounded-[10px]" />
+            </div>
+          </div>
         ))}
       </div>
     </PageShell>

@@ -1,6 +1,8 @@
-import { Clock, Headset, UserX } from "lucide-react";
+import { Clock, UserX } from "lucide-react";
 
+import { BrandMark } from "@/components/shell/brand-mark";
 import { SignOutButton } from "@/components/shell/sign-out-button";
+import { cn } from "@/lib/utils";
 
 /**
  * What a signed-in person sees when they may not see clinic data yet.
@@ -17,42 +19,47 @@ export function AccessScreen({
   kind: "pending" | "missing";
   email?: string | null;
 }) {
-  const Icon = kind === "pending" ? Clock : UserX;
+  const pending = kind === "pending";
+  const Icon = pending ? Clock : UserX;
   return (
-    <main className="flex min-h-svh flex-1 flex-col items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex items-center gap-2.5">
-          <span className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-md">
-            <Headset className="size-4" />
+    <main className="bg-app flex min-h-svh flex-1 flex-col items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md">
+        <BrandMark size="lg" className="mb-8" />
+
+        <div className="bg-surface border-line rounded-2xl border p-6 sm:p-8">
+          <span
+            className={cn(
+              "flex size-11 items-center justify-center rounded-[10px]",
+              pending ? "bg-agent-soft text-agent" : "bg-none-soft text-none-text",
+            )}
+          >
+            <Icon className="size-5" aria-hidden="true" />
           </span>
-          <span className="text-base font-semibold">Medi Desk AI</span>
+
+          {pending ? (
+            <>
+              <h1 className="text-ink mt-5 text-2xl leading-8 font-semibold">Almost there</h1>
+              <p className="text-ink-2 mt-2 text-[15px] leading-[22px]">
+                Your account{email ? <> (<span className="text-ink font-medium">{email}</span>)</> : ""}{" "}
+                is set up. An admin at the clinic needs to approve it on the Team page before you can
+                see anything.
+              </p>
+              <p className="text-ink-3 mt-3 text-[13px]">
+                Ask them to approve you, then reload this page.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-ink mt-5 text-2xl leading-8 font-semibold">Account not found</h1>
+              <p className="text-ink-2 mt-2 text-[15px] leading-[22px]">
+                This session belongs to an account that no longer exists. Sign out, then sign in
+                again or create a new account.
+              </p>
+            </>
+          )}
+
+          <SignOutButton className="mt-6" />
         </div>
-
-        <Icon className="text-muted-foreground mb-3 size-6" />
-        {kind === "pending" ? (
-          <>
-            <h1 className="text-xl font-semibold tracking-tight">
-              Waiting for approval
-            </h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              Your account{email ? ` (${email})` : ""} was created. An admin at
-              the clinic needs to give you access before you can see anything.
-              Ask them to approve you on the Team page, then reload this page.
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 className="text-xl font-semibold tracking-tight">
-              Account not found
-            </h1>
-            <p className="text-muted-foreground mt-2 text-sm">
-              This session belongs to an account that no longer exists. Sign out
-              and sign in again.
-            </p>
-          </>
-        )}
-
-        <SignOutButton className="mt-6" />
       </div>
     </main>
   );

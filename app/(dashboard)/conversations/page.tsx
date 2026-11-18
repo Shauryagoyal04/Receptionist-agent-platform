@@ -8,7 +8,6 @@ import {
   NoConversationsYet,
   NoMatchingConversations,
 } from "@/components/conversations/empty-states";
-import { Card } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getServerEnv } from "@/lib/env";
 import {
@@ -23,6 +22,7 @@ import {
   parseUrlFilters,
   toDataFilters,
 } from "@/lib/conversations/params";
+import { INTENT_LABELS, outcomeLabels } from "@/lib/types";
 
 export const metadata: Metadata = {
   title: "Conversations",
@@ -53,24 +53,42 @@ export default async function ConversationsPage({
   const queryString = buildQueryString(state, { page: page.page });
   const rangeStart = (page.page - 1) * PAGE_SIZE + 1;
 
+  // Names the filter in the empty state ("No conversations match 'Cancelled'"),
+  // when it is simple enough to say in a few words.
+  const outcomeName = outcomeLabels(capabilities.handoffEnabled);
+  const facetNames = [
+    ...state.outcome.map((value) => outcomeName[value]),
+    ...state.intent.map((value) => INTENT_LABELS[value]),
+  ];
+  const filterSummary =
+    state.q.length > 0
+      ? `“${state.q}”`
+      : facetNames.length > 0 && facetNames.length <= 2
+        ? `“${facetNames.join("” or “")}”${state.from ? " in this range" : ""}`
+        : undefined;
+
   return (
     <PageShell>
       <PageHeader
         title="Conversations"
-        description="Every call and chat the agent handled, newest first."
+        description="Every call and chat the agent handled, newest first. Open one to read the transcript."
       />
 
-      <div className="mt-6">
-        <FilterBar
+      {/* One container: the toolbar sits on top of the table it filters. */}
+      <section
+        aria-label="Conversations"
+        className="bg-surface border-line mt-6 overflow-hidden rounded-xl border"
+      >
+        <div className="border-line border-b p-3">
+          <FilterBar
           state={state}
           timeZone={timeZone}
           enabledChannels={capabilities.enabledChannels}
           showChannelUi={capabilities.showChannelUi}
           handoffEnabled={capabilities.handoffEnabled}
-        />
-      </div>
+          />
+        </div>
 
-      <Card className="mt-4 overflow-hidden py-0">
         {page.conversations.length > 0 ? (
           <>
             <ConversationTable
@@ -78,6 +96,7 @@ export default async function ConversationsPage({
               queryString={queryString}
               showChannel={capabilities.showChannelUi}
               handoffEnabled={capabilities.handoffEnabled}
+              timeZone={timeZone}
             />
             <Pagination
               page={page.page}
@@ -91,11 +110,11 @@ export default async function ConversationsPage({
             />
           </>
         ) : filtered || anyExist ? (
-          <NoMatchingConversations />
+          <NoMatchingConversations summary={filterSummary} />
         ) : (
           <NoConversationsYet />
         )}
-      </Card>
+      </section>
     </PageShell>
   );
 }

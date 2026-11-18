@@ -155,3 +155,11 @@ export function formatInZone(
     new Date(iso),
   );
 }
+
+/**
+ * Milliseconds since an instant. Server Components that render "how long
+ * ago" are rendered fresh per request, so reading the clock here is fine.
+ */
+export function msSince(iso: string): number {
+  return Date.now() - new Date(iso).getTime();
+}

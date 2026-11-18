@@ -1,49 +1,54 @@
 import { PageShell } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Mirrors the detail layout — transcript column plus a 320px rail — so the
- * page does not reflow when the conversation arrives.
+ * Mirrors the detail layout — header with channel well, transcript column
+ * with message rows, and a 320px rail of cards — so the page does not
+ * reflow when the conversation arrives.
  */
 export default function ConversationDetailLoading() {
   return (
     <PageShell>
-      <Skeleton className="h-8 w-44" />
+      <Skeleton className="h-8 w-36 rounded-[9px]" />
 
-      <div className="mt-3 flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-2">
-          <Skeleton className="h-7 w-52" />
-          <Skeleton className="h-4 w-64" />
+      <div className="mt-3 flex items-start justify-between gap-3" aria-busy="true" aria-label="Loading conversation">
+        <div className="flex items-start gap-4">
+          <Skeleton className="size-12 rounded-xl" />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-5 w-72" />
+          </div>
         </div>
-        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-8 w-32 rounded-[9px]" />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Card>
-          <CardContent className="flex flex-col gap-3 py-4">
-            {[72, 96, 56, 120, 64, 88].map((height, index) => (
-              <Skeleton key={index} style={{ height }} className="w-full" />
+        <div className="bg-surface border-line rounded-xl border">
+          <div className="border-line border-b px-5 py-3.5">
+            <Skeleton className="h-5 w-28" />
+          </div>
+          <div className="flex flex-col gap-5 px-5 py-5">
+            {[64, 88, 48, 104, 72, 56].map((width, index) => (
+              <div key={index} className="flex gap-3">
+                <Skeleton className="size-8 shrink-0 rounded-full" />
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="h-12 rounded-xl" style={{ width: `${width}%` }} />
+                </div>
+              </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         <div className="flex flex-col gap-4">
-          <Card>
-            <CardContent className="flex flex-col gap-3 py-4">
+          {[5, 3, 7].map((rows, card) => (
+            <div key={card} className="bg-surface border-line flex flex-col gap-2.5 rounded-xl border p-4">
               <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-12 w-full" />
-              {Array.from({ length: 8 }).map((_, index) => (
-                <Skeleton key={index} className="h-4 w-full" />
+              {Array.from({ length: rows }).map((_, index) => (
+                <Skeleton key={index} className="h-3.5 w-full" />
               ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col gap-2 py-4">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-20 w-full" />
-            </CardContent>
-          </Card>
+            </div>
+          ))}
         </div>
       </div>
     </PageShell>

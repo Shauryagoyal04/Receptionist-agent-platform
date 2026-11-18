@@ -46,17 +46,17 @@ export function ReviewToggle({
         aria-pressed={optimistic}
         disabled={isPending}
         onClick={onToggle}
-        className={cn(optimistic && "text-status-booked")}
+        className={cn(optimistic && "bg-booked-soft text-booked-text hover:bg-booked-soft")}
       >
         {isPending ? (
           <Loader2 className="animate-spin" />
         ) : (
-          <CircleCheck className={cn(optimistic && "fill-status-booked/15")} />
+          <CircleCheck className={cn(optimistic && "text-booked")} />
         )}
         {optimistic ? "Reviewed" : "Mark reviewed"}
       </Button>
       {error !== null && (
-        <p role="alert" className="text-status-escalated text-xs">
+        <p role="alert" className="text-danger-text text-xs">
           {error}
         </p>
       )}

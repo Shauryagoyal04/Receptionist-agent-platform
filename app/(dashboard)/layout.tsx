@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Headset } from "lucide-react";
 
 import { auth } from "@/lib/auth";
 import { getAccount } from "@/lib/auth/session";
@@ -8,6 +7,10 @@ import { countPendingUsers } from "@/lib/data/users";
 import { AccessScreen } from "@/components/shell/access-screen";
 import { listCustomPagesForNav } from "@/lib/data/definitions";
 import { countOpenEscalations } from "@/lib/data/escalations";
+import { getLatestConversationByChannel } from "@/lib/data/conversations";
+import { getServerEnv } from "@/lib/env";
+import { AgentStatus } from "@/components/shell/agent-status";
+import { BrandMark } from "@/components/shell/brand-mark";
 import { MobileNav, SidebarNav } from "@/components/shell/sidebar-nav";
 import { UserMenu } from "@/components/shell/user-menu";
 
@@ -33,7 +36,8 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   // down every page (conversations don't depend on it), so it degrades to
   // the fixed items and the page itself reports any real database problem.
   const isAdmin = user.role === "admin";
-  const [customPages, openEscalations, pendingUsers] = await Promise.all([
+  const { capabilities } = getServerEnv();
+  const [customPages, openEscalations, pendingUsers, latestByChannel] = await Promise.all([
     // Staff never see custom pages, so don't load them.
     isAdmin
       ? listCustomPagesForNav(user.clinicId).catch((error: unknown) => {
@@ -52,6 +56,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           return 0;
         })
       : Promise.resolve(0),
+    // The status falls back to "waiting for the first chat" rather than
+    // failing the page.
+    getLatestConversationByChannel(user.clinicId).catch((error: unknown) => {
+      console.error("[layout] couldn't read the latest conversations", error);
+      return null;
+    }),
   ]);
 
   return (
@@ -72,14 +82,13 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
         Skip to content
       </a>
 
-      {/* Desktop: a fixed 240px rail. Hidden below lg, where the top bar
+      {/* Desktop: a fixed 248px rail. Hidden below lg, where the top bar
           carries the same destinations as tabs. */}
-      <aside className="bg-sidebar text-sidebar-foreground border-sidebar-border fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r lg:flex">
-        <div className="flex h-14 items-center gap-2.5 px-5">
-          <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md">
-            <Headset className="size-4" />
-          </span>
-          <span className="text-sm font-semibold">Medi Desk AI</span>
+      <aside className="bg-surface border-line fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col border-r lg:flex">
+        <div className="flex h-16 items-center px-5">
+          <Link href="/analytics" className="rounded-[10px]">
+            <BrandMark />
+          </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
@@ -91,7 +100,12 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           />
         </div>
 
-        <div className="border-sidebar-border border-t p-2">
+        <div className="border-line flex flex-col gap-2 border-t p-3">
+          <AgentStatus
+            openEscalations={openEscalations}
+            latestByChannel={latestByChannel}
+            enabledChannels={capabilities.enabledChannels}
+          />
           <UserMenu
             displayName={user.displayName}
             email={user.email}
@@ -102,13 +116,10 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       </aside>
 
       {/* Mobile: a sticky top bar. */}
-      <header className="bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-30 border-b backdrop-blur lg:hidden">
+      <header className="bg-surface/95 supports-[backdrop-filter]:bg-surface/80 border-line sticky top-0 z-30 border-b backdrop-blur lg:hidden">
         <div className="flex h-14 items-center justify-between gap-3 px-4">
-          <Link href="/analytics" className="flex items-center gap-2.5">
-            <span className="bg-primary text-primary-foreground flex size-7 items-center justify-center rounded-md">
-              <Headset className="size-4" />
-            </span>
-            <span className="text-sm font-semibold">Medi Desk AI</span>
+          <Link href="/analytics" className="rounded-[10px]">
+            <BrandMark />
           </Link>
           <div className="w-44">
             <UserMenu
@@ -128,7 +139,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
         />
       </header>
 
-      <div id="main-content" className="lg:pl-60">
+      <div id="main-content" className="lg:pl-[248px]">
         {children}
       </div>
     </div>

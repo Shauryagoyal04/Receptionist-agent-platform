@@ -22,13 +22,25 @@ import {
   INTENT_IDS,
   INTENT_LABELS,
   OUTCOMES,
-  OUTCOME_TONE,
-  STATUS_TONE,
-  TONE_DOT_CLASS,
+  OUTCOME_MEANING,
+  STATUS_MEANING,
+  CHANNEL_MEANING,
+  meaningVar,
   outcomeLabels,
+  type Meaning,
   statusLabels,
   type Channel,
 } from "@/lib/types";
+
+function Dot({ meaning }: { meaning: Meaning }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="size-2 shrink-0 rounded-full"
+      style={{ backgroundColor: meaningVar(meaning) }}
+    />
+  );
+}
 
 /**
  * Every facet filter behind one trigger.
@@ -73,22 +85,21 @@ export function FiltersMenu({
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
-          size="sm"
           aria-label={
             active
               ? `Filters, ${count} applied`
               : "Filters, none applied"
           }
-          className={cn("h-8 gap-1.5", active && "border-foreground/30")}
+          className={cn(active && "border-agent bg-agent-soft text-agent-text hover:bg-agent-soft")}
         >
-          <SlidersHorizontal className="size-3.5" />
+          <SlidersHorizontal className="size-4" />
           Filters
           {active && (
-            <span className="bg-foreground text-background tabular flex size-4 items-center justify-center rounded-full font-mono text-[10px]">
+            <span className="bg-agent tnum flex size-5 items-center justify-center rounded-full text-[11px] font-semibold text-white">
               {count}
             </span>
           )}
-          <ChevronDown className="text-muted-foreground size-3.5" />
+          <ChevronDown className="text-ink-3 size-4" />
         </Button>
       </DropdownMenuTrigger>
 
@@ -96,9 +107,9 @@ export function FiltersMenu({
         align="end"
         // Capped so the menu never exceeds a laptop screen; the sections
         // together run to about two dozen rows.
-        className="max-h-[min(70vh,34rem)] w-60 overflow-y-auto"
+        className="max-h-[min(70vh,34rem)] w-64 overflow-y-auto rounded-xl shadow-(--shadow-pop)"
       >
-        <DropdownMenuLabel>Outcome</DropdownMenuLabel>
+        <DropdownMenuLabel>How it ended</DropdownMenuLabel>
         {OUTCOMES.map((value) => (
           <DropdownMenuCheckboxItem
             key={value}
@@ -107,12 +118,7 @@ export function FiltersMenu({
             onCheckedChange={() => toggle("outcome", value)}
           >
             <span className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  TONE_DOT_CLASS[OUTCOME_TONE[value]],
-                )}
-              />
+              <Dot meaning={OUTCOME_MEANING[value]} />
               {outcomeLabel[value]}
             </span>
           </DropdownMenuCheckboxItem>
@@ -128,19 +134,14 @@ export function FiltersMenu({
             onCheckedChange={() => toggle("status", value)}
           >
             <span className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "size-2 shrink-0 rounded-full",
-                  TONE_DOT_CLASS[STATUS_TONE[value]],
-                )}
-              />
+              <Dot meaning={STATUS_MEANING[value]} />
               {statusLabel[value]}
             </span>
           </DropdownMenuCheckboxItem>
         ))}
 
         <DropdownMenuSeparator />
-        <DropdownMenuLabel>Intent</DropdownMenuLabel>
+        <DropdownMenuLabel>Asked about</DropdownMenuLabel>
         {INTENT_IDS.map((value) => (
           <DropdownMenuCheckboxItem
             key={value}
@@ -164,7 +165,10 @@ export function FiltersMenu({
                 onSelect={keepOpen}
                 onCheckedChange={() => toggle("channel", value)}
               >
-                {CHANNEL_LABELS[value]}
+                <span className="flex items-center gap-2">
+                  <Dot meaning={CHANNEL_MEANING[value]} />
+                  {CHANNEL_LABELS[value]}
+                </span>
               </DropdownMenuCheckboxItem>
             ))}
           </>
@@ -200,7 +204,7 @@ export function FiltersMenu({
                   unreviewedOnly: false,
                 })
               }
-              className="text-muted-foreground hover:text-foreground flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm"
+              className="text-agent-text hover:bg-sunken flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium"
             >
               <X className="size-3.5" />
               Clear all filters

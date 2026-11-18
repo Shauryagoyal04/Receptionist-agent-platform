@@ -1,69 +1,84 @@
-import { OUTCOME_CHART_COLOR, outcomeLabels, type Outcome } from "@/lib/types";
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+
+import { formatMetric, formatShare } from "@/components/analytics/format";
+import { OUTCOME_CHART_COLOR, type Outcome } from "@/lib/types";
 import type { CountShare } from "@/lib/analytics/aggregate";
+import { cn } from "@/lib/utils";
 
 /**
- * Outcomes as a single stacked bar with a counted legend.
+ * How conversations ended: one segmented bar in the fixed outcome colours,
+ * with a legend that carries the numbers. Hovering a segment or a legend row
+ * dims the rest; each legend row opens Conversations filtered to it.
  *
- * A donut would be worse here: the eye cannot compare small slices across a
- * curve, and "no resolution" at 4% is exactly the segment someone needs to
- * read accurately. One row plus explicit counts is both compact and precise.
+ * A bar rather than a donut: small slices are what someone needs to read
+ * accurately, and the eye compares lengths far better than angles.
  */
 export function OutcomeBar({
   data,
-  handoffEnabled,
+  labels,
+  hrefFor,
 }: {
   data: CountShare<Outcome>[];
-  handoffEnabled: boolean;
+  labels: Record<Outcome, string>;
+  /** Conversations list URL filtered to an outcome, keyed by outcome. */
+  hrefFor: Record<Outcome, string>;
 }) {
-  const label = outcomeLabels(handoffEnabled);
+  const [hovered, setHovered] = React.useState<Outcome | null>(null);
   const rows = data.filter((entry) => entry.count > 0);
-  const total = rows.reduce((sum, entry) => sum + entry.count, 0);
-
-  if (total === 0) {
-    return (
-      <p className="text-muted-foreground py-6 text-center text-sm">
-        No conversations in this range
-      </p>
-    );
-  }
+  const dim = (key: Outcome) => hovered !== null && hovered !== key;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div
-        className="bg-muted flex h-6 w-full overflow-hidden rounded-md"
+        className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full"
         role="img"
-        aria-label={rows
-          .map(
-            (entry) =>
-              `${label[entry.key]}: ${entry.count}, ${(entry.share * 100).toFixed(1)} percent`,
-          )
-          .join("; ")}
+        aria-label={rows.map((r) => `${labels[r.key]}: ${r.count}`).join("; ")}
       >
-        {rows.map((entry) => (
+        {rows.map((entry, index) => (
           <div
             key={entry.key}
-            style={{
-              width: `${entry.share * 100}%`,
-              backgroundColor: OUTCOME_CHART_COLOR[entry.key],
-            }}
-            // The bar is one image for assistive tech; the legend below
-            // carries the same numbers as text.
             aria-hidden="true"
+            onMouseEnter={() => setHovered(entry.key)}
+            onMouseLeave={() => setHovered(null)}
+            title={`${labels[entry.key]}: ${entry.count} (${formatShare(entry.share)})`}
+            className="md-grow-x h-full first:rounded-l-full last:rounded-r-full"
+            style={{
+              flexGrow: entry.count,
+              flexBasis: 0,
+              backgroundColor: OUTCOME_CHART_COLOR[entry.key],
+              opacity: dim(entry.key) ? 0.35 : 1,
+              transition: "opacity var(--dur-quick) var(--ease-out)",
+              animationDelay: `${index * 40}ms`,
+            }}
           />
         ))}
       </div>
 
-      <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
         {rows.map((entry) => (
-          <li key={entry.key} className="flex items-center gap-2 text-sm">
-            <span
-              className="size-2.5 shrink-0 rounded-sm"
-              style={{ backgroundColor: OUTCOME_CHART_COLOR[entry.key] }}
-            />
-            <span className="truncate">{label[entry.key]}</span>
-            <span className="tabular text-muted-foreground ml-auto font-mono text-xs">
-              {entry.count} · {(entry.share * 100).toFixed(1)}%
-            </span>
+          <li key={entry.key}>
+            <Link
+              href={hrefFor[entry.key]}
+              onMouseEnter={() => setHovered(entry.key)}
+              onMouseLeave={() => setHovered(null)}
+              onFocus={() => setHovered(entry.key)}
+              onBlur={() => setHovered(null)}
+              className={cn(
+                "hover:bg-sunken/60 -mx-2 flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-[background-color,opacity] duration-(--dur-quick)",
+                dim(entry.key) && "opacity-35",
+              )}
+            >
+              <span
+                className="size-2.5 shrink-0 rounded-full"
+                style={{ backgroundColor: OUTCOME_CHART_COLOR[entry.key] }}
+              />
+              <span className="text-ink-2 truncate">{labels[entry.key]}</span>
+              <span className="tnum text-ink ml-auto font-medium">{formatMetric("count", entry.count)}</span>
+              <span className="tnum text-ink-3 w-11 text-right text-[13px]">{formatShare(entry.share)}</span>
+            </Link>
           </li>
         ))}
       </ul>
