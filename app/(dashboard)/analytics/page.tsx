@@ -33,7 +33,6 @@ import { aggregate, buildKpis, precedingRange, type KpiId } from "@/lib/analytic
 import { closedWeekdays } from "@/lib/analytics/closed-days";
 import {
   addDaysToDateKey,
-  daysBetweenKeys,
   isDateOnly,
   zonedEndOfDay,
   zonedStartOfDay,
@@ -80,8 +79,6 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
   if (from > to) [from, to] = [to, from];
 
   const previous = precedingRange(from, to);
-  const rangeDays = daysBetweenKeys(from, to);
-
   // Clinic details and doctors only feed the closed-day shading and the setup
   // guide; neither is worth failing the page for.
   const [currentRows, previousRows, clinic, doctors, hasAny, activeReport] = await Promise.all([
@@ -133,7 +130,6 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
 
   const total = summary.total;
   const isNewClinic = !hasAny;
-  const noComparison = total > 0 && prior.total === 0;
 
   const tiles: ActivityTile[] = [
     {
@@ -242,13 +238,6 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
             )}
             <RangePicker from={from} to={to} timeZone={timeZone} />
           </div>
-          {noComparison && (
-            <p className="text-ink-3 flex items-center gap-1.5 text-[13px]">
-              <Info className="size-3.5 shrink-0" aria-hidden="true" />
-              No conversations in the {rangeDays} days before {formatDayKey(from, timeZone)}, so
-              changes aren&apos;t shown.
-            </p>
-          )}
         </div>
       </PageHeader>
 
