@@ -23,11 +23,6 @@ export default async function ClinicPage() {
     <PageShell>
       <PageHeader
         title="Clinic"
-        description={
-          clinic.exists
-            ? "What the agent tells patients about the clinic. Check the preview to hear it the way patients will."
-            : "No clinic details yet. Fill these in and save, and the agent starts using them."
-        }
       />
       <div className="mt-6">
         <ClinicForm

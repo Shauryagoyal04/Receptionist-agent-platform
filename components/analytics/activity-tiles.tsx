@@ -20,7 +20,7 @@ export type ActivityTile = {
   /** Daily values across the range. */
   series: number[];
   /** One plain-language breakdown under the number. */
-  context: string;
+  context?: string;
   /** Where the tile goes: the list behind the number. */
   href: string;
 };
@@ -87,7 +87,9 @@ function Tile({ tile, className }: { tile: ActivityTile; className?: string }) {
 
       <Sparkline values={tile.series} color={meaningVar(tile.meaning)} className="mt-3" />
 
-      <p className="text-ink-3 mt-2 truncate text-[13px] leading-[18px]">{tile.context}</p>
+      {tile.context && (
+        <p className="text-ink-3 mt-2 truncate text-[13px] leading-[18px]">{tile.context}</p>
+      )}
     </Link>
   );
 }

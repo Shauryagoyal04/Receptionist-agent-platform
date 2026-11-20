@@ -35,7 +35,6 @@ export default async function DoctorsPage({ searchParams }: PageProps<"/doctors"
     <PageShell>
       <PageHeader
         title={doctors.length > 0 && !filtered ? `Doctors · ${doctors.length}` : "Doctors"}
-        description="The agent offers active doctors' open slots when a patient asks to book. Hide a doctor instead of deleting them."
       >
         <Button asChild>
           <Link href="/doctors/new">

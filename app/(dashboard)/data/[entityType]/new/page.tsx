@@ -22,11 +22,6 @@ export default async function NewRecordPage({ params }: PageProps<"/data/[entity
       <BackLink href={`/data/${entityType}`}>{definition.label}</BackLink>
       <PageHeader
         title={`Add ${definition.singularLabel.toLowerCase()}`}
-        description={
-          definition.agentEnabled
-            ? "Once saved, the agent can use this to answer patients."
-            : "Staff-only. The agent doesn't read this page."
-        }
       />
       <div className="mt-6">
         <RecordForm

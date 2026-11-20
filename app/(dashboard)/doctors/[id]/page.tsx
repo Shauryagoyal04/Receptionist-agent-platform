@@ -25,11 +25,6 @@ export default async function DoctorPage({ params }: PageProps<"/doctors/[id]">)
       <BackLink href="/doctors">Doctors</BackLink>
       <PageHeader
         title={doctor.name ? `Dr. ${doctor.name}` : "Doctor"}
-        description={
-          doctor.isActive
-            ? "Offered to patients. Changes apply from the next conversation."
-            : "Hidden from patients. Turn on “Taking bookings” to offer them again."
-        }
       />
       <div className="mt-6">
         <DoctorForm

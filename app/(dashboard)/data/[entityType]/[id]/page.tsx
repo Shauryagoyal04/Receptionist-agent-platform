@@ -31,13 +31,6 @@ export default async function RecordPage({ params }: PageProps<"/data/[entityTyp
       <BackLink href={`/data/${entityType}`}>{definition.label}</BackLink>
       <PageHeader
         title={typeof title === "string" && title ? title : definition.singularLabel}
-        description={
-          !record.isActive
-            ? "Inactive: kept here, but hidden from the agent."
-            : definition.agentEnabled
-              ? "The agent uses this from the next conversation after you save."
-              : "Staff-only. The agent doesn't read this page."
-        }
       />
       <div className="mt-6">
         <RecordForm

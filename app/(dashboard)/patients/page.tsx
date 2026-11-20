@@ -50,7 +50,6 @@ export default async function PatientsPage({ searchParams }: PageProps<"/patient
     <PageShell>
       <PageHeader
         title={result.total > 0 && !q ? `Patients · ${result.total.toLocaleString("en-IN")}` : "Patients"}
-        description="The agent adds patients when they book, and recognises them by phone next time. Extra fields here are staff-only."
       />
 
       <div className="bg-surface border-line mt-6 overflow-hidden rounded-xl border">

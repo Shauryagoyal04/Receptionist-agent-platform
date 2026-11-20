@@ -124,7 +124,6 @@ export function DateRangePicker({
               }}
             >
               <p className="text-ink text-sm font-medium">Custom dates</p>
-              <p className="text-ink-3 mt-0.5 text-[13px]">In the clinic&apos;s local time.</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <label className="text-ink-2 flex flex-col gap-1 text-[13px]">
                   From

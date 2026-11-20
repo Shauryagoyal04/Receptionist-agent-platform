@@ -71,7 +71,6 @@ export default async function ConversationsPage({
     <PageShell>
       <PageHeader
         title="Conversations"
-        description="Every call and chat the agent handled, newest first. Open one to read the transcript."
       />
 
       {/* One container: the toolbar sits on top of the table it filters. */}

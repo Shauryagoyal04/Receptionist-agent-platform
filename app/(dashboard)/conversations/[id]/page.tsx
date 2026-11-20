@@ -235,7 +235,6 @@ export default async function ConversationDetailPage({
             <h2 id="transcript-title" className="text-ink text-[17px] leading-6 font-semibold">
               Transcript
             </h2>
-            <span className="text-ink-3 text-[13px]">Times in clinic local time</span>
           </header>
           <div className="px-5 py-5">
             <Transcript messages={messages} timeZone={timeZone} />

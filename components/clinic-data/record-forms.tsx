@@ -247,7 +247,7 @@ export function ClinicForm({
         </div>
 
         <div className="flex min-w-0 flex-col gap-6">
-          <FormCard id="basics" title="Basics" description="The agent reads these to patients, word for word.">
+          <FormCard id="basics" title="Basics">
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField
                 id="clinicName"
@@ -314,7 +314,6 @@ export function ClinicForm({
             <FormCard
               id="more"
               title="More about the clinic"
-              description="Fields your clinic added. The agent only reads the ones tagged “Agent reads this”."
             >
               <AttributeFields
                 fields={fields}
@@ -454,10 +453,9 @@ export function DoctorForm({
           <FormCard
             id="doctor"
             title="Doctor"
-            description='The agent offers this doctor by name. Enter the name without "Dr.": the agent adds it.'
           >
             <div className="grid gap-5 sm:grid-cols-2">
-              <FormField id="name" label="Name" required error={errors.name}>
+              <FormField id="name" label="Name" required error={errors.name} hint='Without "Dr."'>
                 <Input
                   id="name"
                   value={core.name}
@@ -509,7 +507,6 @@ export function DoctorForm({
           <FormCard
             id="schedule"
             title="Schedule"
-            description="The agent offers slots from the start time up to the end time, on these days."
           >
             <div className="flex flex-col gap-5">
               <FormField id="availableDays" label="Working days" required error={errors.availableDays}>
@@ -573,7 +570,6 @@ export function DoctorForm({
             <FormCard
               id="profile"
               title="Profile"
-              description="Fields your clinic added. The agent only shares the ones tagged “Agent reads this”."
             >
               <AttributeFields
                 fields={fields}
@@ -748,7 +744,6 @@ export function PatientForm({
       <FormCard
         id="patient"
         title="Patient"
-        description="The agent fills these in when it books. Phone is how it recognises a returning patient."
       >
         <div className="grid gap-5 sm:grid-cols-2">
           <FormField id="name" label="Name" required error={errors.name}>
@@ -805,7 +800,7 @@ export function PatientForm({
       </FormCard>
 
       {activeFields(fields).length > 0 && (
-        <FormCard id="notes" title="Staff notes" description="Staff-only. The agent never reads these.">
+        <FormCard id="notes" title="Staff notes">
           <AttributeFields fields={fields} values={attrs.values} onChange={attrs.set} errors={errors} />
         </FormCard>
       )}
@@ -887,11 +882,6 @@ export function RecordForm({
       <FormCard
         id="details"
         title="Details"
-        description={
-          agentEnabled
-            ? "Fields tagged “Agent reads this” are what the agent tells patients."
-            : "The agent doesn't read this page. It's for staff only."
-        }
       >
         {activeFields(fields).length === 0 ? (
           <p className="text-ink-3 text-sm">

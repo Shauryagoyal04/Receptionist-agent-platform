@@ -70,17 +70,10 @@ export default async function CustomPageList({
   const noun = definition.singularLabel.toLowerCase();
   const plural = definition.label.toLowerCase();
 
-  const explainer =
-    definition.description ||
-    (definition.agentEnabled
-      ? `The agent reads active ${plural} to answer patients' questions.`
-      : `Staff-only: the agent doesn't read ${plural}.`);
-
   return (
     <PageShell>
       <PageHeader
         title={records.length > 0 && !filtered ? `${definition.label} · ${records.length}` : definition.label}
-        description={explainer}
       >
         {definition.agentEnabled ? (
           <span className="bg-agent-soft text-agent-text inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-medium">

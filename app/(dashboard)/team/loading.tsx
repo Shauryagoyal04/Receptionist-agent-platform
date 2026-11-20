@@ -7,7 +7,6 @@ export default function TeamLoading() {
     <PageShell>
       <PageHeader
         title="Team"
-        description="Anyone can sign up. New accounts see nothing until you give them a role here."
       />
       <div
         className="bg-surface border-line mt-6 overflow-hidden rounded-xl border"

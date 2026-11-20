@@ -7,7 +7,6 @@ export default function EscalationsLoading() {
     <PageShell>
       <PageHeader
         title="Escalations"
-        description="Patients who asked for a person. Call voice callers back; reply to WhatsApp chats from the conversation."
       />
       <Skeleton className="mt-6 h-10 w-72 rounded-[10px]" />
       <div className="mt-5 flex flex-col gap-3" aria-busy="true" aria-label="Loading escalations">

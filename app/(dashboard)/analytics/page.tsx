@@ -146,9 +146,12 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
       delta: delta("handled"),
       increaseIsGood: true,
       series: summary.days.map((d) => d.total),
-      context: showChannels
-        ? channels.map((c) => `${formatMetric("count", channelCount(c))} on ${channelName(c)}`).join(" · ")
-        : `${summary.avgMessagesPerConversation.toFixed(1)} messages per conversation`,
+      context:
+        total === 0
+          ? undefined
+          : showChannels
+            ? channels.map((c) => `${formatMetric("count", channelCount(c))} on ${channelName(c)}`).join(" · ")
+            : `${summary.avgMessagesPerConversation.toFixed(1)} messages per conversation`,
       href: list(),
     },
     {
@@ -161,10 +164,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
       delta: delta("booked"),
       increaseIsGood: true,
       series: summary.days.map((d) => d.booked),
-      context:
-        total === 0
-          ? "Appointments the agent confirmed"
-          : `${formatShare(summary.booked / total)} of all conversations`,
+      context: total === 0 ? undefined : `${formatShare(summary.booked / total)} of all conversations`,
       href: outcomeHref.appointment_booked,
     },
     {
@@ -179,10 +179,8 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
       series: summary.days.map((d) => d.escalated),
       context:
         total === 0
-          ? "Chats the agent passed to staff"
-          : summary.escalated === 0
-            ? "The agent handled every chat itself"
-            : `${formatMetric("count", summary.escalated)} of ${formatMetric("count", total)} chats`,
+          ? undefined
+          : `${formatMetric("count", summary.escalated)} of ${formatMetric("count", total)} chats`,
       href: humanHref,
     },
     {
@@ -197,7 +195,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
       series: summary.days.map((d) => d.medianDurationSec),
       context:
         total === 0
-          ? "From first message to last"
+          ? undefined
           : `About ${Math.round(summary.avgMessagesPerConversation)} messages each`,
       href: list(),
     },
@@ -230,7 +228,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
 
   return (
     <PageShell>
-      <PageHeader title="Analytics" description="How the agent performed, in the clinic's local time.">
+      <PageHeader title="Analytics">
         <div className="flex flex-col items-end gap-2">
           <div className="flex flex-wrap items-center justify-end gap-2">
             {isAdmin && (
@@ -282,7 +280,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
         {/* Volume, with the channel split beside it when there's more than one */}
         <div className={showChannels ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]" : ""}>
           {showChannels && (
-            <Panel title="By channel" description="Where patients reached the agent">
+            <Panel title="By channel">
               <ChannelSplit
                 data={summary.byChannel}
                 channels={channels}
@@ -292,11 +290,6 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
           )}
           <Panel
             title="Conversation volume"
-            description={
-              closed.length > 0
-                ? `Per day, by channel. Amber dots: ${handoff.seriesLabel.toLowerCase()}. Shaded: clinic closed.`
-                : `Per day, by channel. Amber dots: ${handoff.seriesLabel.toLowerCase()}.`
-            }
             srTable={{
               caption: "Conversations per day",
               rows: summary.days.map((d) => ({
@@ -332,14 +325,10 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
 
         {/* How chats ended, and what they were about */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <Panel title="How chats ended" description="Click an outcome to see those conversations">
+          <Panel title="How chats ended">
             {total === 0 ? (
               <div>
                 <div className="bg-sunken h-3 rounded-full" />
-                <p className="text-ink-3 mt-4 text-[13px]">
-                  Booked, rescheduled, answered or passed to staff: each chat&apos;s outcome shows
-                  here once it ends.
-                </p>
               </div>
             ) : (
               <>
@@ -373,7 +362,6 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
 
           <Panel
             title="Busiest hours"
-            description="Clinic local time"
             srTable={{
               caption: "Conversations by hour of day",
               rows: summary.hours
@@ -382,10 +370,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
             }}
           >
             {total < TREND_MIN ? (
-              <p className="text-ink-3 text-[13px]">
-                After a few more conversations this shows when patients usually get in touch, so you
-                can plan who&apos;s at the desk.
-              </p>
+              <p className="text-ink-3 text-[13px]">Not enough data yet.</p>
             ) : (
               <div aria-hidden="true">
                 <HoursChart hours={summary.hours} />

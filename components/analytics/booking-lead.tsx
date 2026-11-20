@@ -53,9 +53,6 @@ export function BookingLead({
           <h2 id="lead-title" className="text-ink text-[17px] leading-6 font-semibold">
             Booking completion
           </h2>
-          <p className="text-ink-3 mt-0.5 text-[13px] leading-[18px]">
-            Patients who wanted an appointment and got one
-          </p>
         </div>
         {!empty && (
           <Link
@@ -89,9 +86,6 @@ export function BookingLead({
           {empty ? (
             <>
               <p className="text-ink-2 text-[15px] leading-[22px]">No one has tried to book yet.</p>
-              <p className="text-ink-3 mt-1 text-[13px] leading-[18px]">
-                Bookings will show here after the first patient asks for an appointment.
-              </p>
             </>
           ) : (
             <>

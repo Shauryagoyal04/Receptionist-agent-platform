@@ -17,7 +17,6 @@ export default async function NewDoctorPage() {
       <BackLink href="/doctors">Doctors</BackLink>
       <PageHeader
         title="Add doctor"
-        description="Once saved, the agent can offer this doctor's slots to patients."
       />
       <div className="mt-6">
         <DoctorForm

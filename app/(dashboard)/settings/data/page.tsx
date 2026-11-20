@@ -90,12 +90,10 @@ function PageList({ defs, muted }: { defs: EntityDefinition[]; muted?: boolean }
 function SectionHeading({
   id,
   title,
-  description,
   action,
 }: {
   id: string;
   title: string;
-  description: string;
   action?: React.ReactNode;
 }) {
   return (
@@ -104,7 +102,6 @@ function SectionHeading({
         <h2 id={id} className="text-ink text-[17px] leading-6 font-semibold">
           {title}
         </h2>
-        <p className="text-ink-3 mt-0.5 text-[13px] leading-[18px]">{description}</p>
       </div>
       {action}
     </div>
@@ -123,7 +120,6 @@ export default async function DataSettingsPage() {
     <PageShell className="max-w-5xl">
       <PageHeader
         title="Data settings"
-        description="Choose what the clinic keeps on each page, and what the agent may read to patients."
       />
 
       <p className="text-ink-3 mt-3 text-[13px]">
@@ -137,7 +133,6 @@ export default async function DataSettingsPage() {
         <SectionHeading
           id="builtin-title"
           title="Built-in pages"
-          description="Booking depends on their core fields, so those stay fixed. You can add more fields."
         />
         <PageList defs={system} />
       </section>
@@ -146,7 +141,6 @@ export default async function DataSettingsPage() {
         <SectionHeading
           id="custom-title"
           title="Clinic pages"
-          description="Lists you define, such as services and charges, staff, or subsidies and schemes."
         />
         <div className="mb-3">
           <CreatePageForm />

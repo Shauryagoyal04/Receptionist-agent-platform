@@ -25,7 +25,6 @@ export default async function PatientPage({ params }: PageProps<"/patients/[id]"
       <BackLink href="/patients">Patients</BackLink>
       <PageHeader
         title={patient.name || "Patient"}
-        description="Kept up to date by the agent when this patient books."
       />
       <div className="mt-6">
         <PatientForm

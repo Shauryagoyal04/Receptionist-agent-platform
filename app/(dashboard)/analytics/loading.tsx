@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 export default function AnalyticsLoading() {
   return (
     <PageShell>
-      <PageHeader title="Analytics" description="How the agent performed, in the clinic's local time.">
+      <PageHeader title="Analytics">
         <Bone className="h-9 w-72 rounded-[10px]" />
       </PageHeader>
 

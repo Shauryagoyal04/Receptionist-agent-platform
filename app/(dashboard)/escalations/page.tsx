@@ -81,7 +81,6 @@ export default async function EscalationsPage({ searchParams }: PageProps<"/esca
     <PageShell>
       <PageHeader
         title="Escalations"
-        description="Patients who asked for a person. Call voice callers back; reply to WhatsApp chats from the conversation."
       />
 
       <nav

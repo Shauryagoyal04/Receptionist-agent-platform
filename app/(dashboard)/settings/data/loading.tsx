@@ -7,7 +7,6 @@ export default function DataSettingsLoading() {
     <PageShell className="max-w-5xl">
       <PageHeader
         title="Data settings"
-        description="Choose what the clinic keeps on each page, and what the agent may read to patients."
       />
       <Skeleton className="mt-3 h-4 w-72" />
       {[3, 2].map((rows, section) => (

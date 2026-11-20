@@ -33,7 +33,6 @@ export default async function TeamPage() {
     <PageShell>
       <PageHeader
         title="Team"
-        description="Anyone can sign up. New accounts see nothing until you give them a role here."
       />
 
       <div className="mt-6 flex flex-col gap-6">

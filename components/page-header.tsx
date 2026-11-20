@@ -3,18 +3,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared page heading. Keeps the title, the one-line explanation and the
- * page-level controls in the same place on every screen, which is what makes
+ * Shared page heading. Keeps the title and the page-level controls in the same place on every screen, which is what makes
  * the console feel like one tool rather than three.
  */
 export function PageHeader({
   title,
-  description,
   children,
   className,
 }: {
   title: string;
-  description?: string;
   children?: React.ReactNode;
   className?: string;
 }) {
@@ -29,9 +26,6 @@ export function PageHeader({
         <h1 className="text-ink text-2xl leading-8 font-semibold sm:text-[28px] sm:leading-[34px]">
           {title}
         </h1>
-        {description && (
-          <p className="text-ink-3 mt-1 text-[15px] leading-[22px]">{description}</p>
-        )}
       </div>
       {children && (
         <div className="flex shrink-0 flex-wrap items-center gap-2">

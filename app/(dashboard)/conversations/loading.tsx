@@ -10,7 +10,6 @@ export default function ConversationsLoading() {
     <PageShell>
       <PageHeader
         title="Conversations"
-        description="Every call and chat the agent handled, newest first. Open one to read the transcript."
       />
 
       <section

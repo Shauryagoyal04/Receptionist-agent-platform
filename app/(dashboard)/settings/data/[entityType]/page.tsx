@@ -25,13 +25,6 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Page settings" };
 
-/** What each built-in page's core fields are, so admins don't duplicate them. */
-const CORE_FIELDS: Record<string, string> = {
-  clinic: "Clinic name, timings, address, reception phone.",
-  doctor: "Name, specialization, active, available days, working hours, minutes per slot.",
-  patient: "Phone, name, age, gender.",
-};
-
 export default async function PageSettings({
   params,
 }: PageProps<"/settings/data/[entityType]">) {
@@ -73,11 +66,6 @@ export default async function PageSettings({
         <PageHeader
           className="min-w-0 flex-1"
           title={def.label}
-          description={
-            system
-              ? `Built-in page. Its core fields (${CORE_FIELDS[entityType].replace(/\.$/, "").toLowerCase()}) are fixed; fields you add are kept alongside them.`
-              : def.description || "A list the clinic keeps."
-          }
         >
           {!def.archived && (
             <Button variant="outline" asChild>

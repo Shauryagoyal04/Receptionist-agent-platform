@@ -13,7 +13,6 @@ export type SrRow = { label: string; value: string };
 
 export function Panel({
   title,
-  description,
   action,
   srTable,
   className,
@@ -21,7 +20,6 @@ export function Panel({
   children,
 }: {
   title: string;
-  description?: React.ReactNode;
   action?: React.ReactNode;
   /**
    * The figures the visual shows, as a screen-reader table. An SVG chart is
@@ -46,9 +44,6 @@ export function Panel({
           <h2 id={headingId} className="text-ink text-[17px] leading-6 font-semibold">
             {title}
           </h2>
-          {description && (
-            <p className="text-ink-3 mt-0.5 text-[13px] leading-[18px]">{description}</p>
-          )}
         </div>
         {action}
       </header>

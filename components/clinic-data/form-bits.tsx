@@ -94,13 +94,11 @@ export function FormSection({
 export function FormCard({
   id,
   title,
-  description,
   aside,
   children,
 }: {
   id: string;
   title: string;
-  description?: string;
   aside?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -115,9 +113,6 @@ export function FormCard({
           <h2 id={`${id}-title`} className="text-ink text-[17px] leading-6 font-semibold">
             {title}
           </h2>
-          {description && (
-            <p className="text-ink-3 mt-0.5 text-[13px] leading-[18px]">{description}</p>
-          )}
         </div>
         {aside}
       </div>
