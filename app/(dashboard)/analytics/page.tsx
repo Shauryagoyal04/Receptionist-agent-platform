@@ -12,6 +12,7 @@ import { z } from "zod";
 import { PageHeader, PageShell } from "@/components/page-header";
 import { ActivityTiles, type ActivityTile } from "@/components/analytics/activity-tiles";
 import { BookingLead } from "@/components/analytics/booking-lead";
+import { FailureReportButton } from "@/components/analytics/failure-report-button";
 import { ChannelSplit } from "@/components/analytics/channel-split";
 import { HoursChart } from "@/components/analytics/charts";
 import { DotTimeline, SampleVolume } from "@/components/analytics/dot-timeline";
@@ -27,6 +28,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getServerEnv } from "@/lib/env";
 import { getClinicRecord, listDoctors } from "@/lib/data/clinic-records";
 import { clinicHasAnyConversations, getConversationsInRange } from "@/lib/data/conversations";
+import { MAX_LATEST_FAILURES, getActiveFailureReport } from "@/lib/data/failure-reports";
 import { aggregate, buildKpis, precedingRange, type KpiId } from "@/lib/analytics/aggregate";
 import { closedWeekdays } from "@/lib/analytics/closed-days";
 import {
@@ -82,7 +84,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
 
   // Clinic details and doctors only feed the closed-day shading and the setup
   // guide; neither is worth failing the page for.
-  const [currentRows, previousRows, clinic, doctors, hasAny] = await Promise.all([
+  const [currentRows, previousRows, clinic, doctors, hasAny, activeReport] = await Promise.all([
     getConversationsInRange(
       user.clinicId,
       zonedStartOfDay(from, timeZone) ?? from,
@@ -96,6 +98,8 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
     getClinicRecord(user.clinicId).catch(() => null),
     listDoctors(user.clinicId).catch(() => null),
     clinicHasAnyConversations(user.clinicId).catch(() => true),
+    // A report already being prepared (another tab or admin) shows as in progress.
+    isAdmin ? getActiveFailureReport(user.clinicId).catch(() => null) : Promise.resolve(null),
   ]);
 
   const summary = aggregate(currentRows.conversations, { from, to, timeZone });
@@ -228,7 +232,18 @@ export default async function AnalyticsPage({ searchParams }: PageProps<"/analyt
     <PageShell>
       <PageHeader title="Analytics" description="How the agent performed, in the clinic's local time.">
         <div className="flex flex-col items-end gap-2">
-          <RangePicker from={from} to={to} timeZone={timeZone} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {isAdmin && (
+              <FailureReportButton
+                from={from}
+                to={to}
+                timeZone={timeZone}
+                maxLatest={MAX_LATEST_FAILURES}
+                initialJob={activeReport}
+              />
+            )}
+            <RangePicker from={from} to={to} timeZone={timeZone} />
+          </div>
           {noComparison && (
             <p className="text-ink-3 flex items-center gap-1.5 text-[13px]">
               <Info className="size-3.5 shrink-0" aria-hidden="true" />
